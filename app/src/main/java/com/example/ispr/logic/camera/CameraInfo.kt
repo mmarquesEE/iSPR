@@ -4,6 +4,25 @@ import com.example.ispr.ui.widgets.InfoRowContent
 
 /**
  * Encapsulates detailed hardware specifications for the front-facing camera.
+ * 
+ * This data class is used to hold parsed information from [android.hardware.camera2.CameraCharacteristics],
+ * providing a human-readable summary of the camera's capabilities, including sensor details,
+ * supported ISO/Exposure ranges, and hardware levels.
+ *
+ * @property modelName The name or ID of the camera model.
+ * @property sensorSize Physical dimensions of the camera sensor.
+ * @property focalLengths List of supported focal lengths.
+ * @property apertures List of supported aperture values.
+ * @property isoRange Formatted string representing the supported ISO sensitivity range.
+ * @property rawIsoRange The numerical [android.util.Range] of supported ISO values.
+ * @property exposureTimeRange Formatted string representing the supported exposure time range.
+ * @property rawExposureRange The numerical [android.util.Range] of supported exposure times in nanoseconds.
+ * @property maxResolution The maximum supported capture resolution.
+ * @property supportedHardwareLevel The legacy or limited/full/level-3 hardware support level.
+ * @property facing Direction the camera is facing (expected to be FRONT).
+ * @property sensorOrientation Clockwise angle that the sensor image needs to be rotated by.
+ * @property autoExposureModes List of supported auto-exposure modes.
+ * @property autoFocusModes List of supported auto-focus modes.
  */
 class CameraHardwareInfo(
     val modelName: String,
@@ -21,6 +40,11 @@ class CameraHardwareInfo(
     val autoExposureModes: List<String>,
     val autoFocusModes: List<String>
 ) {
+    /**
+     * Converts the hardware information into a list of [InfoRowContent] for UI display.
+     * 
+     * @return A list of key-value pairs representing the camera's specifications.
+     */
     fun toInfoRowContentList(): List<InfoRowContent> {
         val aeModes = if (autoExposureModes.isNotEmpty()) {
             autoExposureModes.joinToString(", ")

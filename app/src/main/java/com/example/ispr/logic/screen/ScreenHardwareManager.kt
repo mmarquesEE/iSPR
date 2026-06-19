@@ -1,24 +1,82 @@
 package com.example.ispr.logic.screen
 
+import android.app.Activity
 import android.content.Context
+import android.graphics.Rect
 import android.util.DisplayMetrics
 import android.view.Display
+import android.view.SurfaceView
 import android.view.WindowManager
 import java.util.Locale
 
+/**
+ * Aggregator for all screen-related hardware features.
+ * Provides access to display metrics, brightness control, and low-level pixel controlled areas.
+ */
 class ScreenHardwareManager(private val context: Context) {
+
+    private var brightnessManager: ScreenBrightnessManager? = null
+    private var activeControlledArea: ScreenHardwareControlledArea? = null
+
+    /**
+     * Initializes the brightness control for a specific activity.
+     */
+    fun initializeBrightness(activity: Activity) {
+        brightnessManager = ScreenBrightnessManager(activity).apply {
+            synchronizeWithSystem()
+        }
+    }
+
+    /**
+     * Toggles the high-intensity mode (100% backlight with UI dimming).
+     */
+    fun setHighIntensityMode(enabled: Boolean) {
+        if (enabled) {
+            brightnessManager?.setMaxWindowBrightness()
+        } else {
+            brightnessManager?.restoreSystemBrightness()
+        }
+    }
+
+    /**
+     * Returns the alpha value for the UI dimming overlay.
+     */
+    fun getUiDimmingAlpha(): Float {
+        return brightnessManager?.getUiDimmingAlpha() ?: 0f
+    }
+
+    /**
+     * Attaches a direct hardware controlled area to the provided SurfaceView.
+     */
+    fun attachControlledArea(surfaceView: SurfaceView) {
+        activeControlledArea = ScreenHardwareControlledArea(surfaceView)
+    }
+
+    /**
+     * Updates the physical bounds of the active controlled area.
+     */
+    fun updateControlledAreaBounds(bounds: Rect) {
+        activeControlledArea?.updateBounds(bounds)
+    }
+
+    /**
+     * Updates the color/intensity of the active controlled area.
+     */
+    fun updateControlledAreaColor(color: Int) {
+        activeControlledArea?.updateColor(color)
+    }
 
     /**
      * Formats a float value to a string with a specific unit using US Locale.
      */
-    fun formatTechValue(value: Float, unit: String, decimals: Int = 2): String {
+    private fun formatTechValue(value: Float, unit: String, decimals: Int = 2): String {
         return String.format(Locale.US, "%.${decimals}f %s", value, unit)
     }
 
     /**
      * Queries the system for the most up-to-date screen hardware information.
      */
-    fun getScreenInfo(): com.example.ispr.logic.screen.ScreenHardwareInfo {
+    fun getScreenInfo(): ScreenHardwareInfo {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val display = context.display
 
@@ -28,7 +86,7 @@ class ScreenHardwareManager(private val context: Context) {
 
         // Camera Inset info extraction
         var insetBounds = "not provided"
-        var rawCutout: com.example.ispr.logic.screen.CameraCutoutInfo? = null
+        var rawCutout: CameraCutoutInfo? = null
         val cutout = windowManager.currentWindowMetrics.windowInsets.displayCutout
 
         cutout?.boundingRects?.firstOrNull()?.let { rect ->

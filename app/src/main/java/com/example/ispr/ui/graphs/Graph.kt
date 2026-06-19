@@ -14,7 +14,7 @@ import com.example.ispr.logic.processing.ProcessingResult
 import java.util.Locale
 
 @Composable
-fun PulseGraph(
+fun Graph(
     result: ProcessingResult?,
     modifier: Modifier = Modifier,
     params: ProcessingParameters,

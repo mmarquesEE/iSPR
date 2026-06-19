@@ -15,7 +15,7 @@ import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
-import com.example.ispr.logic.processing.FrameProcessor
+import com.example.ispr.logic.processing.ProcessingFrameProcessor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.Semaphore
@@ -33,6 +33,16 @@ data class CameraSettings(
 
 /**
  * Manages the camera lifecycle, preview stream, and manual hardware controls.
+ *
+ * This class handles the initialization and configuration of the camera using the Camera2 API.
+ * It manages a [HandlerThread] for background operations to avoid blocking the UI thread,
+ * handles opening/closing the [CameraDevice], and maintains the [CameraCaptureSession].
+ *
+ * Features:
+ * - Real-time image analysis via [FrameProcessor].
+ * - Dynamic preview surface attachment/detachment.
+ * - Manual control over ISO and exposure time via [CameraSettings].
+ * - Lifecycle-aware management via [resume] and [pause] methods.
  */
 class CameraStreamManager(private val context: Context) {
     private val TAG = "CameraStreamManager"
@@ -43,26 +53,37 @@ class CameraStreamManager(private val context: Context) {
 
     private var backgroundThread: HandlerThread? = null
     private var backgroundHandler: Handler? = null
+
+    /**
+     * Semaphore to ensure mutual exclusion between camera opening and closing operations.
+     */
     private val cameraOpenCloseLock = Semaphore(1)
 
     private var currentSettings = CameraSettings()
     private var previewSurface: Surface? = null
     private var imageReader: ImageReader? = null
-    private var frameProcessor: FrameProcessor? = null
+    private var frameProcessor: ProcessingFrameProcessor? = null
 
+    /**
+     * Flow emitting the currently active camera resolution.
+     */
     private val _activeResolution = MutableStateFlow<Size?>(null)
     val activeResolution = _activeResolution.asStateFlow()
 
     /**
      * Attaches a processor for real-time image analysis.
+     *
+     * @param processor The [ProcessingFrameProcessor] to handle incoming camera frames.
      */
-    fun setFrameProcessor(processor: FrameProcessor?) {
+    fun setFrameProcessor(processor: ProcessingFrameProcessor?) {
         frameProcessor = processor
     }
 
     /**
-     * Starts the background thread and opens the camera.
-     * The camera will stay running even without a preview surface.
+     * Initializes the background thread and triggers the camera opening process.
+     *
+     * This method should be called from the UI component's `onStart` or `onResume` lifecycle hook.
+     * The camera will remain active even if no preview surface is attached.
      */
     fun resume() {
         if (backgroundThread != null) return
@@ -74,7 +95,9 @@ class CameraStreamManager(private val context: Context) {
     }
 
     /**
-     * Stops the camera and background thread.
+     * Stops the camera, releases resources, and shuts down the background thread.
+     *
+     * This method should be called from the UI component's `onStop` or `onPause` lifecycle hook.
      */
     fun pause() {
         closeCamera()
@@ -90,6 +113,16 @@ class CameraStreamManager(private val context: Context) {
         }
     }
 
+    /**
+     * Internal helper to identify the front camera and request access from the system.
+     *
+     * This method:
+     * 1. Acquires a lock to prevent concurrent access.
+     * 2. Selects the best front-facing camera.
+     * 3. Selects an optimal resolution (preferring 16:9 aspect ratio).
+     * 4. Configures an [ImageReader] to receive YUV_420_888 frames.
+     * 5. Opens the [CameraDevice].
+     */
     @SuppressLint("MissingPermission")
     private fun openCamera() {
         backgroundHandler?.post {
@@ -124,7 +157,9 @@ class CameraStreamManager(private val context: Context) {
 
                 imageReader?.close()
 
-                imageReader = ImageReader.newInstance(bestSize.width, bestSize.height, ImageFormat.YUV_420_888, 2).apply {
+                imageReader = ImageReader.newInstance(
+                    bestSize.width, bestSize.height, ImageFormat.YUV_420_888, 2
+                ).apply {
                     setOnImageAvailableListener({ reader ->
                         val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
                         val processor = frameProcessor
@@ -164,7 +199,11 @@ class CameraStreamManager(private val context: Context) {
 
     /**
      * Attaches or detaches a preview surface (e.g., from a TextureView).
-     * Camera capture continues regardless of this surface's presence.
+     *
+     * Camera capture continues regardless of this surface's presence. If a new surface
+     * is provided, the [CameraCaptureSession] is re-created to include it.
+     *
+     * @param surface The [Surface] to display the preview, or null to detach.
      */
     fun setPreviewSurface(surface: Surface?) {
         backgroundHandler?.post {
@@ -177,6 +216,12 @@ class CameraStreamManager(private val context: Context) {
         }
     }
 
+    /**
+     * Creates a new [CameraCaptureSession] with the configured surfaces.
+     *
+     * Always includes the [ImageReader] surface for processing, and optionally
+     * the [previewSurface] if one is attached.
+     */
     private fun createCaptureSession() {
         val device = cameraDevice ?: return
         val readerSurface = imageReader?.surface ?: return
@@ -211,7 +256,9 @@ class CameraStreamManager(private val context: Context) {
     }
 
     /**
-     * Updates the running camera stream with new settings.
+     * Updates the running camera stream with new hardware settings.
+     *
+     * @param settings The new [CameraSettings] (ISO, Exposure, Auto-mode) to apply.
      */
     fun updateSettings(settings: CameraSettings) {
         currentSettings = settings
@@ -220,6 +267,10 @@ class CameraStreamManager(private val context: Context) {
         }
     }
 
+    /**
+     * Applies the current [CameraSettings] to the [CaptureRequest.Builder] and
+     * restarts the repeating request in the [CameraCaptureSession].
+     */
     private fun updateCaptureRequest() {
         val session = captureSession ?: return
         val builder = previewRequestBuilder ?: return
@@ -240,6 +291,12 @@ class CameraStreamManager(private val context: Context) {
         }
     }
 
+    /**
+     * Safely releases the [CameraCaptureSession] and [CameraDevice].
+     *
+     * Acquires the [cameraOpenCloseLock] to ensure no new sessions are being created
+     * during the closing process.
+     */
     private fun closeCamera() {
         try {
             cameraOpenCloseLock.acquire()

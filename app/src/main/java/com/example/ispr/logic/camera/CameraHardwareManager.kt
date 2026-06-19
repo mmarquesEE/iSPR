@@ -1,19 +1,75 @@
 package com.example.ispr.logic.camera
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
 import android.util.Size
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.core.content.ContextCompat
 import java.util.Locale
 
 /**
  * Logic provider that probes the Android Camera2 API to extract detailed camera hardware specifications.
  */
 class CameraHardwareManager(private val context: Context) {
-    val permissionManager = CameraPermissionManager(context)
-    val streamManager = CameraStreamManager(context)
+
+    private val cameraStreamManager = CameraStreamManager(context)
+
+    /**
+     * Flow emitting the currently active camera resolution.
+     */
+    val activeResolution = cameraStreamManager.activeResolution
+
+    /**
+     * Starts or resumes the camera stream.
+     */
+    fun resume() = cameraStreamManager.resume()
+
+    /**
+     * Pauses the camera stream and releases hardware resources.
+     */
+    fun pause() = cameraStreamManager.pause()
+
+    /**
+     * Attaches a preview surface (e.g., from a TextureView).
+     */
+    fun setPreviewSurface(surface: android.view.Surface?) = cameraStreamManager.setPreviewSurface(surface)
+
+    /**
+     * Updates the camera hardware settings (ISO, Exposure, etc.).
+     */
+    fun updateSettings(settings: CameraSettings) = cameraStreamManager.updateSettings(settings)
+
+    /**
+     * Attaches a processor for real-time image analysis.
+     */
+    fun setFrameProcessor(processor: com.example.ispr.logic.processing.ProcessingFrameProcessor?) =
+        cameraStreamManager.setFrameProcessor(processor)
+
+    companion object {
+        /**
+         * The list of permissions required by the camera module.
+         */
+        val REQUIRED_PERMISSIONS = arrayOf(
+            Manifest.permission.CAMERA
+        )
+    }
+
+    /**
+     * Checks if all required camera permissions are currently granted.
+     */
+    fun hasPermissions(): Boolean {
+        return REQUIRED_PERMISSIONS.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
 
     /**
      * Queries the system for the front-facing camera hardware information.
@@ -106,3 +162,22 @@ class CameraHardwareManager(private val context: Context) {
     }
 }
 
+
+/**
+ * A specialized Composable that handles the camera permission request flow.
+ * While it involves UI/Launcher logic, it is placed here to keep all
+ * camera-access-related code in the camera module.
+ */
+@Composable
+fun CameraPermissionRequester(
+    onPermissionResult: (Boolean) -> Unit
+) {
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = onPermissionResult
+    )
+
+    SideEffect {
+        launcher.launch(Manifest.permission.CAMERA)
+    }
+}

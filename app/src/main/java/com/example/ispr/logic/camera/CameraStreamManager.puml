@@ -1,0 +1,100 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+autonumber
+
+actor Client
+participant "CameraStreamManager" as CSM
+participant "BackgroundThread\n(Handler)" as BT
+participant "CameraManager\n(System)" as CM
+participant "CameraDevice" as CD
+participant "CameraCaptureSession" as CCS
+participant "ImageReader" as IR
+participant "FrameProcessor" as FP
+
+== 1. Initial Start (resume) ==
+
+Client -> CSM : new CameraStreamManager(context)
+Client -> CSM : resume()
+activate CSM
+CSM -> BT : Start Thread & Handler
+note right: backgroundThread initialized
+CSM -> BT : post { openCamera() }
+activate BT
+BT -> CM : openCamera(frontId, callback)
+deactivate BT
+deactivate CSM
+
+CM -> BT : onOpened(cameraDevice)
+activate BT
+BT -> BT : createCaptureSession()
+BT -> CD : createCaptureSession(surfaces, callback)
+deactivate BT
+
+CD -> BT : onConfigured(session)
+activate BT
+BT -> CCS : setRepeatingRequest(...)
+deactivate BT
+
+== 2. Data Consumption ==
+
+... Streaming Active ...
+
+IR -> BT : onImageAvailable()
+activate BT
+BT -> IR : acquireLatestImage()
+BT -> FP : processImage(image)
+activate FP
+FP --> BT : (processing logic)
+deactivate FP
+BT -> IR : image.close()
+deactivate BT
+
+== 3. Interruption (pause) ==
+
+Client -> CSM : pause()
+activate CSM
+CSM -> BT : closeCamera()
+activate BT
+BT -> CCS : close()
+BT -> CD : close()
+deactivate BT
+CSM -> IR : close()
+CSM -> BT : quitSafely()
+destroy BT
+note right of CSM: Thread destroyed,\nHardware released
+deactivate CSM
+
+== 4. Recovery (resume again) ==
+
+Client -> CSM : resume()
+activate CSM
+CSM -> BT : Start NEW Thread
+activate BT
+CSM -> BT : post { openCamera() }
+BT -> CM : openCamera(...)
+deactivate BT
+deactivate CSM
+
+CM -> BT : onOpened(...)
+activate BT
+BT -> CD : createCaptureSession(...)
+BT -> CCS : setRepeatingRequest(...)
+deactivate BT
+
+== 5. Data Consumption continues ==
+
+... Streaming Resumed ...
+
+IR -> BT : onImageAvailable()
+BT -> FP : processImage(image)
+
+== 6. Final Termination ==
+
+Client -> CSM : pause()
+activate CSM
+CSM -> BT : release all resources
+destroy BT
+deactivate CSM
+
+@endum

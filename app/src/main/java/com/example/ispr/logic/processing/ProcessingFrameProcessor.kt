@@ -25,8 +25,8 @@ data class ProcessingResult(
  * Handles real-time image processing on camera frames.
  * Extracts intensity profiles for R, G, and B channels within a specified ROI.
  */
-class FrameProcessor {
-    private val TAG = "FrameProcessor"
+class ProcessingFrameProcessor {
+    private val TAG = "ProcessingFrameProcessor"
 
     private val _result = MutableStateFlow<ProcessingResult?>(null)
     val result = _result.asStateFlow()

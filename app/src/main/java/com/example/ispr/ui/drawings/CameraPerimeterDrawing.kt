@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import com.example.ispr.logic.screen.CameraCutoutInfo
 
 @Composable
-fun CameraInsertDrawing(
+fun CameraPerimeterDrawing(
     cutout: CameraCutoutInfo?,
     modifier: Modifier = Modifier
 ) {

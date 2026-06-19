@@ -1,0 +1,66 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+autonumber
+
+actor Client
+participant "ScreenHardwareManager" as SHM
+participant "WindowManager\n(System)" as WM
+participant "Display\n(System)" as DIS
+participant "CameraCutoutInfo" as CCI
+participant "ScreenHardwareInfo" as SHI
+
+== 1. Initialization ==
+
+Client -> SHM : new ScreenHardwareManager(context)
+
+== 2. Data Acquisition ==
+
+Client -> SHM : getScreenInfo()
+activate SHM
+
+SHM -> WM : get currentWindowMetrics()
+SHM -> WM : get windowInsets.displayCutout
+
+SHM -> DIS : getRealMetrics(metrics)
+SHM -> DIS : get refreshRate, isWideColorGamut
+SHM -> DIS : get hdrCapabilities
+
+== 3. Geometric Processing ==
+
+alt Cutout present
+    SHM -> CCI : new CameraCutoutInfo(rect)
+    activate CCI
+    CCI -> CCI : Calculate centerX, centerY
+    note right: Center adjusted for\nphysical lens offset
+    SHM <-- CCI : cutoutInstance
+    deactivate CCI
+else No cutout
+    SHM -> SHM : rawCutout = null
+end
+
+== 4. Result Assembly ==
+
+SHM -> SHI : new ScreenHardwareInfo(...)
+activate SHI
+SHM <-- SHI : infoInstance
+deactivate SHI
+
+Client <-- SHM : ScreenHardwareInfo
+deactivate SHM
+
+== 5. Usage Scenarios ==
+
+group Case A: UI InfoTab content
+    Client -> SHI : toInfoRowContentList()
+    SHI --> Client : List<InfoRowContent>
+    note right: Formatted for InfoBlock
+end
+
+group Case B: Front Camera Perimeter Drawing Drawing
+    Client -> SHI : get cameraRawCutout
+    Client -> SHI : get rawXDpi, rawYDpi
+    note right: Used by CameraPerimeterDrawing\nfor sub-pixel alignment
+end
+
+@endum
