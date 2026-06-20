@@ -35,7 +35,7 @@ data class CameraCutoutInfo(
      * The vertical center of the cutout in raw pixels. 
      * Note: Adjusted for specific hardware lens positioning within the cutout area.
      */
-    val centerY: Float = top + height - (width / 2f)
+    val centerY: Float = top + height - (width / 2f) - 4f
 }
 
 /**

@@ -25,7 +25,7 @@ fun CameraPerimeterDrawing(
         drawArc(
             color = Color.White,
             startAngle = 0f,
-            sweepAngle = 180f,
+            sweepAngle = 360f,
             useCenter = false,
             topLeft = Offset(cutout.centerX - radius, cutout.centerY - radius),
             size = Size(radius * 2, radius * 2),

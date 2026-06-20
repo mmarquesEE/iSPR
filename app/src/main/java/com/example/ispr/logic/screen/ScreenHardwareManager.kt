@@ -2,11 +2,17 @@ package com.example.ispr.logic.screen
 
 import android.app.Activity
 import android.content.Context
+import android.database.ContentObserver
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.Display
 import android.view.SurfaceView
 import android.view.WindowManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
 
 /**
@@ -18,31 +24,71 @@ class ScreenHardwareManager(private val context: Context) {
     private var brightnessManager: ScreenBrightnessManager? = null
     private var activeControlledArea: ScreenHardwareControlledArea? = null
 
+    private val _uiDimmingAlpha = MutableStateFlow(0f)
+    val uiDimmingAlpha = _uiDimmingAlpha.asStateFlow()
+
+    private val brightnessObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            updateDimmingAlpha()
+        }
+    }
+
+    private var isObserverRegistered = false
+
+    init {
+        updateDimmingAlpha()
+    }
+
+    /**
+     * Resumes screen-related background processes and observers.
+     */
+    fun resume() {
+        if (!isObserverRegistered) {
+            context.contentResolver.registerContentObserver(
+                Settings.System.getUriFor(Settings.System.SCREEN_BRIGHTNESS),
+                false,
+                brightnessObserver
+            )
+            isObserverRegistered = true
+        }
+        updateDimmingAlpha()
+        // Re-apply max brightness if the manager exists (app coming back to foreground)
+        brightnessManager?.setMaxWindowBrightness()
+    }
+
+    /**
+     * Pauses screen-related background processes and observers.
+     */
+    fun pause() {
+        if (isObserverRegistered) {
+            context.contentResolver.unregisterContentObserver(brightnessObserver)
+            isObserverRegistered = false
+        }
+        // Restore system brightness behavior when app goes to background
+        brightnessManager?.restoreSystemBrightness()
+    }
+
+    /**
+     * Updates the dimming alpha based on the current system brightness.
+     */
+    private fun updateDimmingAlpha() {
+        val brightness = try {
+            Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS)
+        } catch (e: Settings.SettingNotFoundException) {
+            127
+        }
+        val ratio = brightness / 255f
+        _uiDimmingAlpha.value = 0.75f*(1.0f - ratio).coerceIn(0f, 1f)
+    }
+
     /**
      * Initializes the brightness control for a specific activity.
      */
     fun initializeBrightness(activity: Activity) {
-        brightnessManager = ScreenBrightnessManager(activity).apply {
-            synchronizeWithSystem()
-        }
-    }
-
-    /**
-     * Toggles the high-intensity mode (100% backlight with UI dimming).
-     */
-    fun setHighIntensityMode(enabled: Boolean) {
-        if (enabled) {
-            brightnessManager?.setMaxWindowBrightness()
-        } else {
-            brightnessManager?.restoreSystemBrightness()
-        }
-    }
-
-    /**
-     * Returns the alpha value for the UI dimming overlay.
-     */
-    fun getUiDimmingAlpha(): Float {
-        return brightnessManager?.getUiDimmingAlpha() ?: 0f
+        // We always update the manager with the latest activity reference
+        brightnessManager = ScreenBrightnessManager(activity)
+        // Ensure max brightness is applied if we are active
+        brightnessManager?.setMaxWindowBrightness()
     }
 
     /**
@@ -57,6 +103,20 @@ class ScreenHardwareManager(private val context: Context) {
      */
     fun updateControlledAreaBounds(bounds: Rect) {
         activeControlledArea?.updateBounds(bounds)
+    }
+
+    /**
+     * Updates the source mode (flat color vs dynamic animation) of the active controlled area.
+     */
+    fun setControlledAreaFlatSource(isFlat: Boolean) {
+        activeControlledArea?.setFlatSource(isFlat)
+    }
+
+    /**
+     * Updates the refresh rate of the active controlled area.
+     */
+    fun setControlledAreaFrameRate(fps: Float) {
+        activeControlledArea?.setFrameRate(fps)
     }
 
     /**
@@ -78,7 +138,13 @@ class ScreenHardwareManager(private val context: Context) {
      */
     fun getScreenInfo(): ScreenHardwareInfo {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val display = context.display
+        val display = try {
+            context.display
+        } catch (e: UnsupportedOperationException) {
+            // Fallback for cases where context is not visual (e.g. Application context)
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay
+        }
 
         val metrics = DisplayMetrics()
         @Suppress("DEPRECATION")

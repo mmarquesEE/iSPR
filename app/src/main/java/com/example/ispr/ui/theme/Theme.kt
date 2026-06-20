@@ -20,6 +20,8 @@ fun ISPRTheme(
 ) {
     MaterialTheme(
         colorScheme = darkColorScheme(
+            primary = Color(0xFF2196F3),
+            onPrimary = Color(0xFFFFFFFF),
             background = Color(0xFF000000),
             onBackground = Color(0xFFFFFFFF)
         ),

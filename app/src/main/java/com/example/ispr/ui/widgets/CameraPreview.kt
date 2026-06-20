@@ -1,4 +1,4 @@
-package com.example.sprmobile.ui.components
+package com.example.ispr.ui.widgets
 
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,20 +34,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.ispr.logic.camera.CameraHardwareInfo
+import com.example.ispr.logic.camera.CameraHardwareManager
 import com.example.ispr.logic.camera.CameraSettings
-import com.example.ispr.logic.camera.CameraStreamManager
-import com.example.ispr.ui.widgets.LabeledSlider
 
 @Composable
 fun CameraPreview(
-    cameraStreamManager: CameraStreamManager,
+    cameraHardwareManager: CameraHardwareManager,
     cameraHardwareInfo: CameraHardwareInfo?,
     modifier: Modifier = Modifier
 ) {
     var showOverlay by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(CameraSettings()) }
 
-    val activeResolution by cameraStreamManager.activeResolution.collectAsState()
+    val activeResolution by cameraHardwareManager.activeResolution.collectAsState()
 
     Box(
         modifier = modifier
@@ -61,19 +58,19 @@ fun CameraPreview(
         AndroidView(
             modifier = Modifier
                 .fillMaxHeight()
-                .aspectRatio(1f)
-                .clipToBounds(),
+                .clipToBounds()
+                .aspectRatio(1f),
             factory = { context ->
                 SurfaceView(context).apply {
                     holder.addCallback(object : SurfaceHolder.Callback {
                         override fun surfaceCreated(holder: SurfaceHolder) {
-                            cameraStreamManager.setPreviewSurface(holder.surface)
+                            cameraHardwareManager.setPreviewSurface(holder.surface)
                         }
 
                         override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 
                         override fun surfaceDestroyed(holder: SurfaceHolder) {
-                            cameraStreamManager.setPreviewSurface(null)
+                            cameraHardwareManager.setPreviewSurface(null)
                         }
                     })
                 }
@@ -101,7 +98,7 @@ fun CameraPreview(
                 settings = settings,
                 onSettingsChange = {
                     settings = it
-                    cameraStreamManager.updateSettings(it)
+                    cameraHardwareManager.updateSettings(it)
                 },
                 hardwareInfo = cameraHardwareInfo,
                 onClose = { showOverlay = false },
@@ -180,13 +177,5 @@ fun CameraControlOverlay(
         }
 
         Spacer(modifier = Modifier.weight(1f))
-
-        Button(
-            onClick = onClose,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f))
-        ) {
-            Text("Hide Overlay", color = Color.White)
-        }
     }
 }

@@ -5,8 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
@@ -19,9 +17,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 
 /**
@@ -50,11 +49,8 @@ fun TabsLayout(
     modifier: Modifier = Modifier,
     initialTab: Int = 0
 ) {
-    // Tracks the currently active tab index
     var selectedTab by remember { mutableIntStateOf(initialTab) }
 
-    // Smoothly animates the fractional step multiplier (e.g., from 0.0 to -1.0)
-    // to drive the horizontal track's position.
     val translationOffset by animateFloatAsState(
         targetValue = -selectedTab.toFloat(),
         animationSpec = tween(durationMillis = 400),
@@ -62,10 +58,7 @@ fun TabsLayout(
     )
 
     Column(modifier = modifier.fillMaxSize()) {
-
-        // ==========================================
-        // 1. TAB HEADER NAVIGATION (Material 3)
-        // ==========================================
+        // 1. Tab Header
         PrimaryTabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.background,
@@ -82,56 +75,43 @@ fun TabsLayout(
             }
         }
 
-        // ==========================================
-        // 2. THE VISUAL CLIPPING VIEWPORT
-        // ==========================================
+        // 2. Viewport (Clipping Container)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .background(MaterialTheme.colorScheme.background)
+                .clipToBounds()
         ) {
-
-            // ==========================================
-            // 3. HORIZONTAL PRE-RENDERED CAROUSEL TRACK
-            // ==========================================
-            Row(
+            // 3. Carousel Track
+            Layout(
+                content = {
+                    tabs.forEach { tabItem ->
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            tabItem.content()
+                        }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        // Performs a zero-recomposition translation on the render thread
                         translationX = translationOffset * size.width
                     }
-            ) {
-                tabs.forEach { tabItem ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            // Bypasses Row flex sizing to claim full viewport bounds
-                            .then(FillParentWidthModifier)
-                    ) {
-                        // Invoked simultaneously for all tabs to ensure immediate readiness
-                        tabItem.content()
+            ) { measurables, constraints ->
+                val width = constraints.maxWidth
+                val height = constraints.maxHeight
+                
+                // Use fixed constraints to ensure each tab is exactly the viewport size.
+                // This prevents "squeezing" if the child content uses wrap-content widths.
+                val childConstraints = Constraints.fixed(width, height)
+                val placeables = measurables.map { it.measure(childConstraints) }
+
+                layout(width, height) {
+                    placeables.forEachIndexed { index, placeable ->
+                        placeable.placeRelative(x = index * width, y = 0)
                     }
                 }
             }
         }
-    }
-}
-
-/**
- * A custom layout modifier that forces a child element inside a standard [Row]
- * to bypass default sequential layout restrictions and strictly match 100% of the
- * parent's incoming maximum width and height layout constraints.
- */
-private val FillParentWidthModifier = Modifier.layout { measurable, constraints ->
-    val childConstraints = Constraints.fixed(
-        width = constraints.maxWidth,
-        height = constraints.maxHeight
-    )
-    val placeable = measurable.measure(childConstraints)
-
-    layout(placeable.width, placeable.height) {
-        placeable.place(0, 0)
     }
 }

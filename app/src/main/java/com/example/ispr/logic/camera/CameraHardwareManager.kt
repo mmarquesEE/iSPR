@@ -11,7 +11,7 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.core.content.ContextCompat
 import java.util.Locale
 
@@ -172,12 +172,19 @@ class CameraHardwareManager(private val context: Context) {
 fun CameraPermissionRequester(
     onPermissionResult: (Boolean) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = onPermissionResult
     )
 
-    SideEffect {
-        launcher.launch(Manifest.permission.CAMERA)
+    LaunchedEffect(Unit) {
+        val permission = android.Manifest.permission.CAMERA
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) 
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            launcher.launch(permission)
+        } else {
+            onPermissionResult(true)
+        }
     }
 }
