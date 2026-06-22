@@ -50,7 +50,7 @@ data class CameraSettings(
  * - Manual control over ISO and exposure time via [CameraSettings].
  * - Lifecycle-aware management via [resume] and [pause] methods.
  */
-class CameraStreamManager(private val context: Context) {
+class CameraStreamManager(context: Context) {
     private val TAG = "CameraStreamManager"
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private var cameraDevice: CameraDevice? = null
@@ -375,7 +375,6 @@ class CameraStreamManager(private val context: Context) {
     private fun updateCaptureRequest() {
         val session = captureSession ?: return
         val builder = previewRequestBuilder ?: return
-        val deviceId = cameraDevice?.id ?: return
         val currentSettings = _settings.value
 
         try {

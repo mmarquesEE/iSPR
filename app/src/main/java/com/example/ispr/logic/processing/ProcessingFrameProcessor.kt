@@ -21,7 +21,45 @@ data class ProcessingResult(
     val BCursorY: Float,
     val isTimeView: Boolean = false,
     val timeLabels: LongArray? = null
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ProcessingResult
+
+        if (RCursorX != other.RCursorX) return false
+        if (RCursorY != other.RCursorY) return false
+        if (GCursorX != other.GCursorX) return false
+        if (GCursorY != other.GCursorY) return false
+        if (BCursorX != other.BCursorX) return false
+        if (BCursorY != other.BCursorY) return false
+        if (isTimeView != other.isTimeView) return false
+        if (!RChannelY.contentEquals(other.RChannelY)) return false
+        if (!GChannelY.contentEquals(other.GChannelY)) return false
+        if (!BChannelY.contentEquals(other.BChannelY)) return false
+        if (X != other.X) return false
+        if (!timeLabels.contentEquals(other.timeLabels)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = RCursorX
+        result = 31 * result + RCursorY.hashCode()
+        result = 31 * result + GCursorX
+        result = 31 * result + GCursorY.hashCode()
+        result = 31 * result + BCursorX
+        result = 31 * result + BCursorY.hashCode()
+        result = 31 * result + isTimeView.hashCode()
+        result = 31 * result + RChannelY.contentHashCode()
+        result = 31 * result + GChannelY.contentHashCode()
+        result = 31 * result + BChannelY.contentHashCode()
+        result = 31 * result + X.hashCode()
+        result = 31 * result + (timeLabels?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 /**
  * Handles real-time image processing on camera frames.

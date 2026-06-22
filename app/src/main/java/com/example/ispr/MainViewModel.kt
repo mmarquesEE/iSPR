@@ -24,11 +24,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val screenManager = ScreenHardwareManager(application)
 
     /**
-     * Cached camera hardware information.
-     */
-    val cameraInfo = cameraManager.getCameraInfo()
-
-    /**
      * Processor for real-time image analysis.
      */
     private val frameProcessor = com.example.ispr.logic.processing.ProcessingFrameProcessor()

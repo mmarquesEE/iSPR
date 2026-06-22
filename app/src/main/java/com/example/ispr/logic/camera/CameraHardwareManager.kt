@@ -75,7 +75,7 @@ class CameraHardwareManager(private val context: Context) {
     /**
      * Queries the system for the front-facing camera hardware information.
      */
-    fun getCameraInfo(): com.example.ispr.logic.camera.CameraHardwareInfo? {
+    fun getCameraInfo(): CameraHardwareInfo? {
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
             val cameraIds = manager.cameraIdList
@@ -94,7 +94,7 @@ class CameraHardwareManager(private val context: Context) {
         return null
     }
 
-    private fun extractCameraInfo(chars: CameraCharacteristics): com.example.ispr.logic.camera.CameraHardwareInfo {
+    private fun extractCameraInfo(chars: CameraCharacteristics): CameraHardwareInfo {
         val sensorSize = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
         val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
         val apertures = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
@@ -197,9 +197,9 @@ fun CameraPermissionRequester(
     )
 
     LaunchedEffect(Unit) {
-        val permission = android.Manifest.permission.CAMERA
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) 
-            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission)
+            != PackageManager.PERMISSION_GRANTED) {
             launcher.launch(permission)
         } else {
             onPermissionResult(true)
