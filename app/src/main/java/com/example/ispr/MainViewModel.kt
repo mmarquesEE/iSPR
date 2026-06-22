@@ -74,6 +74,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Triggers a reference capture on the next frame.
+     */
+    fun captureReference() {
+        frameProcessor.captureReference()
+    }
+
+    /**
+     * Clears the current ratiometric reference.
+     */
+    fun clearReference() {
+        frameProcessor.clearReference()
+    }
+
+    /**
      * Checks for permissions and starts the camera stream if allowed.
      */
     fun resumeCameraIfPossible() {

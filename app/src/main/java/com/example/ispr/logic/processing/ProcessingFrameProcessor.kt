@@ -2,8 +2,19 @@ package com.example.ispr.logic.processing
 
 import android.media.Image
 import android.util.Log
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+
+
+/**
+ * Type of data contained in the ProcessingResult.
+ */
+enum class ResultType {
+    RAW,
+    RATIOMETRIC
+}
 
 /**
  * Result of the image processing pipeline.
@@ -12,6 +23,7 @@ data class ProcessingResult(
     val redVector: FloatArray,
     val greenVector: FloatArray,
     val blueVector: FloatArray,
+    val type: ResultType,
     val columns: IntRange,
     val minRedIndex: Int,
     val minRedValue: Float,
@@ -32,12 +44,37 @@ class ProcessingFrameProcessor {
     val result = _result.asStateFlow()
 
     private var params = ProcessingParameters()
+    
+    private var refRed: FloatArray? = null
+    private var refGreen: FloatArray? = null
+    private var refBlue: FloatArray? = null
+
+    private var shouldCaptureReference = false
 
     /**
      * Updates the processing parameters.
      */
     fun updateParameters(newParams: ProcessingParameters) {
-        params = newParams
+        if (params != newParams) {
+            params = newParams
+            clearReference()
+        }
+    }
+
+    /**
+     * Requests a reference capture on the next processed frame.
+     */
+    fun captureReference() {
+        shouldCaptureReference = true
+    }
+
+    /**
+     * Clears current reference vectors.
+     */
+    fun clearReference() {
+        refRed = null
+        refGreen = null
+        refBlue = null
     }
 
     /**
@@ -110,25 +147,54 @@ class ProcessingFrameProcessor {
                 bVector[i] = (avgY + 1.772 * uNorm).toFloat().coerceIn(0f, 255f)
             }
 
-            // 4. Moving Average (Centered with Padding)
-            val smoothedR = applyMovingAverage(rVector, params.movingAverageWindow)
-            val smoothedG = applyMovingAverage(gVector, params.movingAverageWindow)
-            val smoothedB = applyMovingAverage(bVector, params.movingAverageWindow)
+            val smoothedR = applyMovingAverage(rVector, params.movingAvgSpaceWinSize)
+            val smoothedG = applyMovingAverage(gVector, params.movingAvgSpaceWinSize)
+            val smoothedB = applyMovingAverage(bVector, params.movingAvgSpaceWinSize)
 
-            // 5. Normalization
-            normalize(smoothedR)
-            normalize(smoothedG)
-            normalize(smoothedB)
+            // 4. Reference Capture Logic
+            if (shouldCaptureReference) {
+                refRed = smoothedR.copyOf()
+                refGreen = smoothedG.copyOf()
+                refBlue = smoothedB.copyOf()
+                shouldCaptureReference = false
+            }
+
+            // 5. Ratiometric vs RAW path
+            val rRef = refRed
+            val gRef = refGreen
+            val bRef = refBlue
+
+            val finalR: FloatArray
+            val finalG: FloatArray
+            val finalB: FloatArray
+            val type: ResultType
+
+            if (rRef != null && gRef != null && bRef != null) {
+                finalR = divide(smoothedR, rRef)
+                finalG = divide(smoothedG, gRef)
+                finalB = divide(smoothedB, bRef)
+                type = ResultType.RATIOMETRIC
+            } else {
+                finalR = smoothedR
+                finalG = smoothedG
+                finalB = smoothedB
+                type = ResultType.RAW
+            }
+
+            normalize(finalR)
+            normalize(finalG)
+            normalize(finalB)
 
             // 6. Minimum Detection
-            val (minIdxR, minValR) = findMin(smoothedR)
-            val (minIdxG, minValG) = findMin(smoothedG)
-            val (minIdxB, minValB) = findMin(smoothedB)
+            val (minIdxR, minValR) = findMin(finalR)
+            val (minIdxG, minValG) = findMin(finalG)
+            val (minIdxB, minValB) = findMin(finalB)
 
             _result.value = ProcessingResult(
-                redVector = smoothedR,
-                greenVector = smoothedG,
-                blueVector = smoothedB,
+                redVector = finalR,
+                greenVector = finalG,
+                blueVector = finalB,
+                type = type,
                 columns = minCol until maxCol,
                 minRedIndex = minIdxR,
                 minRedValue = minValR,
@@ -183,5 +249,17 @@ class ProcessingFrameProcessor {
             }
         }
         return Pair(minIdx, minVal)
+    }
+    
+    private fun divide(vectorA: FloatArray, vectorB: FloatArray): FloatArray {
+        if (vectorA.isEmpty() || vectorB.isEmpty() || vectorA.size != vectorB.size)
+            return vectorA.copyOf()
+        
+        val vectorC = FloatArray(vectorA.size)
+        for (i in vectorA.indices) {
+            val denom = vectorB[i]
+            vectorC[i] = if (denom != 0f) vectorA[i] / denom else 1f
+        }
+        return vectorC
     }
 }

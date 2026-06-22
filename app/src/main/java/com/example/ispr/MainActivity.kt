@@ -137,7 +137,11 @@ class MainActivity : ComponentActivity() {
                                         GraphTab(
                                             result = result,
                                             params = processingParams,
-                                            onParamsChange = { viewModel.updateProcessingParameters(it) }
+                                            onParamsChange = { viewModel.updateProcessingParameters(it) },
+                                            onReferenceToggle = { isChecked ->
+                                                if (isChecked) viewModel.captureReference()
+                                                else viewModel.clearReference()
+                                            }
                                         )
                                     },
                                     TabItem(Icons.Default.Info) {

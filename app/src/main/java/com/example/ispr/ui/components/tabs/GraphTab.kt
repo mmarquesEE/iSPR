@@ -1,5 +1,6 @@
 package com.example.ispr.ui.components.tabs
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -24,7 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ispr.logic.processing.ProcessingParameters
 import com.example.ispr.logic.processing.ProcessingResult
+import com.example.ispr.logic.processing.ResultType
 import com.example.ispr.ui.graphs.Graph
+import com.example.ispr.ui.graphs.GraphData
 import com.example.ispr.ui.widgets.ColorCheckbox
 import com.example.ispr.ui.widgets.LabeledRangeSlider
 import com.example.ispr.ui.widgets.LabeledSlider
@@ -33,8 +37,13 @@ import com.example.ispr.ui.widgets.LabeledSlider
 fun GraphTab(
     result: ProcessingResult?,
     params: ProcessingParameters,
-    onParamsChange: (ProcessingParameters) -> Unit
+    onParamsChange: (ProcessingParameters) -> Unit,
+    onReferenceToggle: (Boolean) -> Unit
 ) {
+    var isRedEnabled by remember { mutableStateOf(true) }
+    var isGreenEnabled by remember { mutableStateOf(true) }
+    var isBlueEnabled by remember { mutableStateOf(true) }
+
     var autoScale by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
@@ -56,18 +65,18 @@ fun GraphTab(
             ){
                 ColorCheckbox(
                     color = Color(0xFFFF0000),
-                    checked = params.isRedEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isRedEnabled = it)) }
+                    checked = isRedEnabled,
+                    onCheckedChange = { isRedEnabled = it }
                 )
                 ColorCheckbox(
                     color = Color(0xFF00FF00),
-                    checked = params.isGreenEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isGreenEnabled = it)) }
+                    checked = isGreenEnabled,
+                    onCheckedChange = { isGreenEnabled = it }
                 )
                 ColorCheckbox(
                     color = Color(0xFF0000FF),
-                    checked = params.isBlueEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isBlueEnabled = it)) }
+                    checked = isBlueEnabled,
+                    onCheckedChange = { isBlueEnabled = it }
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -86,14 +95,62 @@ fun GraphTab(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Fixed height for graph to work well inside vertical scroll
-        Graph(
-            result = result,
-            params = params,
-            autoScale = autoScale,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-        )
+        if (result != null) {
+            Graph(
+                listOf(
+                    GraphData(
+                        color = Color(0xFFFF0000),
+                        enabled = isRedEnabled,
+                        data = result.redVector,
+                        dataMin = result.minRedValue,
+                        dataMinIndex = result.minRedIndex
+                    ),
+                    GraphData(
+                        color = Color(0xFF00FF00),
+                        enabled = isGreenEnabled,
+                        data = result.greenVector,
+                        dataMin = result.minGreenValue,
+                        dataMinIndex = result.minGreenIndex
+                    ),
+                    GraphData(
+                        color = Color(0xFF0000FF),
+                        enabled = isBlueEnabled,
+                        data = result.blueVector,
+                        dataMin = result.minBlueValue,
+                        dataMinIndex = result.minBlueIndex
+                    )
+                ),
+                indexes = result.columns,
+                isTimeSeries = false,
+                autoScale = autoScale,
+                overlay = {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(
+                                color = Color.Black.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "RATIOMETRIC MODE",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Switch(
+                            checked = result.type == ResultType.RATIOMETRIC,
+                            onCheckedChange = onReferenceToggle
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -120,8 +177,8 @@ fun GraphTab(
         // Moving Average Window
         LabeledSlider(
             label = "Smoothing Window",
-            value = params.movingAverageWindow.toFloat(),
-            onValueChange = { onParamsChange(params.copy(movingAverageWindow = it.toInt())) },
+            value = params.movingAvgSpaceWinSize.toFloat(),
+            onValueChange = { onParamsChange(params.copy(movingAvgSpaceWinSize = it.toInt())) },
             valueRange = 1f..20f,
             format = "%.0f"
         )

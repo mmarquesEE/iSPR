@@ -67,7 +67,9 @@ fun CameraPreview(
                             cameraHardwareManager.setPreviewSurface(holder.surface)
                         }
 
-                        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+                        override fun surfaceChanged(
+                            holder: SurfaceHolder, format: Int, width: Int, height: Int
+                        ) {}
 
                         override fun surfaceDestroyed(holder: SurfaceHolder) {
                             cameraHardwareManager.setPreviewSurface(null)
@@ -83,7 +85,9 @@ fun CameraPreview(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(16.dp)
-                .background(Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small)
+                .background(
+                    Color.Black.copy(alpha = 0.4f), MaterialTheme.shapes.small
+                )
         ) {
             Icon(
                 imageVector = Icons.Default.Settings,
@@ -101,7 +105,6 @@ fun CameraPreview(
                     cameraHardwareManager.updateSettings(it)
                 },
                 hardwareInfo = cameraHardwareInfo,
-                onClose = { showOverlay = false },
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.6f))
@@ -118,7 +121,6 @@ fun CameraControlOverlay(
     settings: CameraSettings,
     onSettingsChange: (CameraSettings) -> Unit,
     hardwareInfo: CameraHardwareInfo?,
-    onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(

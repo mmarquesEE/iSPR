@@ -7,8 +7,6 @@ data class ProcessingParameters(
     val minCol: Int = 400,
     val maxCol: Int = 800,
     val centerRowsHeight: Int = 50,
-    val movingAverageWindow: Int = 5,
-    val isRedEnabled: Boolean = true,
-    val isGreenEnabled: Boolean = true,
-    val isBlueEnabled: Boolean = true
+    val movingAvgSpaceWinSize: Int = 5,
+    val movingAvgTimeWinSize: Int = 5
 )
