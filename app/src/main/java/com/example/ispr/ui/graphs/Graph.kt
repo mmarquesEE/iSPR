@@ -33,7 +33,31 @@ data class GraphData(
     val data: FloatArray,
     val dataMin: Float,
     val dataMinIndex: Int,
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as GraphData
+
+        if (enabled != other.enabled) return false
+        if (dataMin != other.dataMin) return false
+        if (dataMinIndex != other.dataMinIndex) return false
+        if (color != other.color) return false
+        if (!data.contentEquals(other.data)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = enabled.hashCode()
+        result = 31 * result + dataMin.hashCode()
+        result = 31 * result + dataMinIndex
+        result = 31 * result + color.hashCode()
+        result = 31 * result + data.contentHashCode()
+        return result
+    }
+}
 
 @Composable
 fun Graph(
@@ -131,7 +155,7 @@ fun Graph(
                 }
 
                 graphs.forEach {
-                    if (it.enabled?: false) {
+                    if (it.enabled) {
                         drawVector(
                             it.data, it.color,
                             width = graphW,

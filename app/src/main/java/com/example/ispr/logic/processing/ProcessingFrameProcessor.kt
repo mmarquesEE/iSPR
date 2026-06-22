@@ -2,10 +2,8 @@ package com.example.ispr.logic.processing
 
 import android.media.Image
 import android.util.Log
-import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 
 
 /**
@@ -31,7 +29,43 @@ data class ProcessingResult(
     val minGreenValue: Float,
     val minBlueIndex: Int,
     val minBlueValue: Float
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as ProcessingResult
+
+        if (minRedIndex != other.minRedIndex) return false
+        if (minRedValue != other.minRedValue) return false
+        if (minGreenIndex != other.minGreenIndex) return false
+        if (minGreenValue != other.minGreenValue) return false
+        if (minBlueIndex != other.minBlueIndex) return false
+        if (minBlueValue != other.minBlueValue) return false
+        if (!redVector.contentEquals(other.redVector)) return false
+        if (!greenVector.contentEquals(other.greenVector)) return false
+        if (!blueVector.contentEquals(other.blueVector)) return false
+        if (type != other.type) return false
+        if (columns != other.columns) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = minRedIndex
+        result = 31 * result + minRedValue.hashCode()
+        result = 31 * result + minGreenIndex
+        result = 31 * result + minGreenValue.hashCode()
+        result = 31 * result + minBlueIndex
+        result = 31 * result + minBlueValue.hashCode()
+        result = 31 * result + redVector.contentHashCode()
+        result = 31 * result + greenVector.contentHashCode()
+        result = 31 * result + blueVector.contentHashCode()
+        result = 31 * result + type.hashCode()
+        result = 31 * result + columns.hashCode()
+        return result
+    }
+}
 
 /**
  * Handles real-time image processing on camera frames.

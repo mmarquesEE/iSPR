@@ -46,8 +46,6 @@ fun CameraPreview(
     var showOverlay by remember { mutableStateOf(false) }
     var settings by remember { mutableStateOf(CameraSettings()) }
 
-    val activeResolution by cameraHardwareManager.activeResolution.collectAsState()
-
     Box(
         modifier = modifier
             .fillMaxSize()

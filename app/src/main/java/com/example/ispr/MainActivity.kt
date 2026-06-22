@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.ShowChart
@@ -133,7 +134,7 @@ class MainActivity : ComponentActivity() {
                                             onSourceConfigChange = { viewModel.updateSourceConfiguration(it) }
                                         )
                                     },
-                                    TabItem(Icons.Default.ShowChart) {
+                                    TabItem(Icons.AutoMirrored.Filled.ShowChart) {
                                         GraphTab(
                                             result = result,
                                             params = processingParams,
