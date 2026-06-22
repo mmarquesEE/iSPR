@@ -1,0 +1,34 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="4"
+        android:translateY="4">
+        <!-- The Prism -->
+        <path
+            android:pathData="M50,25 L85,75 L15,75 Z"
+            android:fillColor="#000000"
+            android:strokeColor="#000000"
+            android:strokeWidth="1"/>
+        <!-- Sensing Surface -->
+        <path
+            android:pathData="M15,75 L85,75"
+            android:strokeColor="#000000"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"/>
+        <!-- Incident & Reflected Light -->
+        <path
+            android:pathData="M25,30 L50,75 L60,57 M65,48 L75,30"
+            android:strokeColor="#000000"
+            android:strokeWidth="2.5"
+            android:strokeLineCap="round"/>
+        <!-- Resonance Curve -->
+        <path
+            android:pathData="M60,65 Q70,85 80,65"
+            android:strokeColor="#000000"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"/>
+    </group>
+</vector>

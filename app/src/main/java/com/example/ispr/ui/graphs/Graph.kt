@@ -55,17 +55,17 @@ fun Graph(
             val minY: Float
             val maxY: Float
 
-            if (autoScale) {
-                minY = minOf(
-                    a = result.redVector.minOrNull() ?: 0f,
-                    b = result.greenVector.minOrNull() ?: 0f,
-                    c = result.blueVector.minOrNull() ?: 0f
-                )
-                maxY = maxOf(
-                    a = result.redVector.maxOrNull() ?: 0f,
-                    b = result.greenVector.maxOrNull() ?: 0f,
-                    c = result.blueVector.maxOrNull() ?: 0f
-                )
+            if (autoScale || result.isTimeView) {
+                val rMin = if (params.isRedEnabled) result.RChannelY.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
+                val gMin = if (params.isGreenEnabled) result.GChannelY.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
+                val bMin = if (params.isBlueEnabled) result.BChannelY.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
+                
+                val rMax = if (params.isRedEnabled) result.RChannelY.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
+                val gMax = if (params.isGreenEnabled) result.GChannelY.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
+                val bMax = if (params.isBlueEnabled) result.BChannelY.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
+
+                minY = minOf(rMin, gMin, bMin).let { if (it == Float.MAX_VALUE) 0f else it }
+                maxY = maxOf(rMax, gMax, bMax).let { if (it == Float.MIN_VALUE) 1f else it }
             } else {
                 minY = 0f
                 maxY = 1f
@@ -76,26 +76,39 @@ fun Graph(
 
             xTicks.forEachIndexed { index, tick ->
                 val x = marginL + (tick * graphW)
-                val colIdx = result.columns.first + (tick * (result.columns.last - result.columns.first + 1)).toInt()
-                val textXOffset = if (index == 0) 5.dp.toPx() else if (index == 2) -25.dp.toPx() else -10.dp.toPx()
+                
+                val label = if (result.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
+                    val firstTs = result.timeLabels.first()
+                    val lastTs = result.timeLabels.last()
+                    val currentTs = firstTs + (tick * (lastTs - firstTs)).toLong()
+                    String.format(Locale.US, "%.1fs", (currentTs - firstTs) / 1_000_000_000.0)
+                } else {
+                    val colIdx = result.X.first + (tick * (result.X.last - result.X.first)).toInt()
+                    colIdx.toString()
+                }
+                
+                val textXOffset = if (index == 0) 5.dp.toPx() else if (index == 2) -35.dp.toPx() else -15.dp.toPx()
 
                 drawLine(
                     axisColor,
                     start = androidx.compose.ui.geometry.Offset(x, graphH),
-                    end = androidx.compose.ui.geometry.Offset(x, graphH + 4.dp.toPx()),
+                    end = androidx.compose.ui.geometry.Offset(x, graphH - 5.dp.toPx()),
                     strokeWidth = 1.dp.toPx()
                 )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = colIdx.toString(),
-                    style = labelStyle,
-                    topLeft = androidx.compose.ui.geometry.Offset(x + textXOffset, graphH + 5.dp.toPx())
-                )
+                if (index > 0)
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = label,
+                        style = labelStyle,
+                        topLeft = androidx.compose.ui.geometry.Offset(x + textXOffset, graphH - 20.dp.toPx())
+                    )
             }
 
             yTicks.forEach { tick ->
                 val normalizedTick = (tick - minY) / rangeY
                 val y = graphH - (normalizedTick * graphH)
+                val textYOffset = if (tick == minY) -15.dp.toPx() else if (tick == maxY) 0.dp.toPx() else -7.dp.toPx()
+
                 drawLine(axisColor,
                     start = androidx.compose.ui.geometry.Offset(marginL, y),
                     end = androidx.compose.ui.geometry.Offset(marginL + 4.dp.toPx(), y),
@@ -105,58 +118,64 @@ fun Graph(
                     textMeasurer = textMeasurer,
                     text = String.format(Locale.US, "%.2f", tick),
                     style = labelStyle,
-                    topLeft = androidx.compose.ui.geometry.Offset(marginL + 7.dp.toPx(), y - 14.dp.toPx())
+                    topLeft = androidx.compose.ui.geometry.Offset(marginL + 7.dp.toPx(), y + textYOffset)
                 )
             }
 
             // Draw Data Vectors
             if (params.isRedEnabled) {
                 drawVector(
-                    result.redVector, Color.Red,
+                    result.RChannelY, Color.Red,
                     width=graphW,
                     height = graphH,
                     offsetX = marginL,
                     minY, rangeY
                 )
-                drawMinMarkers(
-                    result.minRedIndex, result.minRedValue, Color.Red,
-                    vectorSize = result.redVector.size,
-                    width = graphW,
-                    height = graphH,
-                    offsetX = marginL,
-                    minY, rangeY
-                )
+                if (!result.isTimeView) {
+                    drawMinMarkers(
+                        result.RCursorX, result.RCursorY, Color.Red,
+                        vectorSize = result.RChannelY.size,
+                        width = graphW,
+                        height = graphH,
+                        offsetX = marginL,
+                        minY, rangeY
+                    )
+                }
             }
             if (params.isGreenEnabled) {
                 drawVector(
-                    result.greenVector, Color.Green,
+                    result.GChannelY, Color.Green,
                     width = graphW,
                     height = graphH,
                     offsetX = marginL, minY, rangeY
                 )
-                drawMinMarkers(
-                    result.minGreenIndex, result.minGreenValue, Color.Green,
-                    vectorSize = result.greenVector.size,
-                    width = graphW, graphH,
-                    offsetX = marginL, minY, rangeY
-                )
+                if (!result.isTimeView) {
+                    drawMinMarkers(
+                        result.GCursorX, result.GCursorY, Color.Green,
+                        vectorSize = result.GChannelY.size,
+                        width = graphW, graphH,
+                        offsetX = marginL, minY, rangeY
+                    )
+                }
             }
             if (params.isBlueEnabled) {
                 drawVector(
-                    result.blueVector, Color.Blue,
+                    result.BChannelY, Color.Blue,
                     width = graphW,
                     height = graphH,
                     offsetX = marginL,
                     minY, rangeY
                 )
-                drawMinMarkers(
-                    result.minBlueIndex, result.minBlueValue, Color.Blue,
-                    vectorSize = result.blueVector.size,
-                    width = graphW,
-                    height = graphH,
-                    offsetX = marginL,
-                    minY, rangeY
-                )
+                if (!result.isTimeView) {
+                    drawMinMarkers(
+                        result.BCursorX, result.BCursorY, Color.Blue,
+                        vectorSize = result.BChannelY.size,
+                        width = graphW,
+                        height = graphH,
+                        offsetX = marginL,
+                        minY, rangeY
+                    )
+                }
             }
         }
     }

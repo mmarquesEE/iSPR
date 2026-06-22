@@ -3,6 +3,8 @@ package com.example.ispr.ui.widgets
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,8 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,9 +49,7 @@ fun CameraPreview(
     modifier: Modifier = Modifier
 ) {
     var showOverlay by remember { mutableStateOf(false) }
-    var settings by remember { mutableStateOf(CameraSettings()) }
-
-    val activeResolution by cameraHardwareManager.activeResolution.collectAsState()
+    val settings by cameraHardwareManager.settings.collectAsState()
 
     Box(
         modifier = modifier
@@ -55,11 +58,12 @@ fun CameraPreview(
         contentAlignment = Alignment.Center
     ) {
         // 1. Camera Stream via SurfaceView
+        // Restoring Aspect Ratio 1 to prevent distortion as per user feedback
         AndroidView(
             modifier = Modifier
+                .aspectRatio(1f)
                 .fillMaxHeight()
-                .clipToBounds()
-                .aspectRatio(1f),
+                .clipToBounds(),
             factory = { context ->
                 SurfaceView(context).apply {
                     holder.addCallback(object : SurfaceHolder.Callback {
@@ -97,22 +101,17 @@ fun CameraPreview(
             CameraControlOverlay(
                 settings = settings,
                 onSettingsChange = {
-                    settings = it
                     cameraHardwareManager.updateSettings(it)
                 },
                 hardwareInfo = cameraHardwareInfo,
                 onClose = { showOverlay = false },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f))
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
 }
 
-/**
- * Overlay UI for manual camera hardware adjustments.
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraControlOverlay(
     settings: CameraSettings,
@@ -121,61 +120,141 @@ fun CameraControlOverlay(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    // Dimmed background that closes on click - Now contains the menu for a unified look
+    Box(
         modifier = modifier
-            .padding(16.dp)
-            .padding(top = 64.dp) // Offset for the settings button
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(top = 50.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClose
+            )
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Control Panel - Semi-transparent Surface to see preview behind it
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.End,
         ) {
-            Text(
-                text = "Manual Control",
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
-            Switch(
-                checked = !settings.isAuto,
-                onCheckedChange = { onSettingsChange(settings.copy(isAuto = !it)) }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (!settings.isAuto && hardwareInfo != null) {
-            // ISO Slider
-            hardwareInfo.rawIsoRange?.let { range ->
-                LabeledSlider(
-                    label = "ISO",
-                    value = settings.iso.toFloat(),
-                    onValueChange = { onSettingsChange(settings.copy(iso = it.toInt())) },
-                    valueRange = range.lower.toFloat()..range.upper.toFloat(),
-                    format = "%.0f",
-                    enabled = true
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Manual Control",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+                Switch(
+                    checked = !settings.isAuto,
+                    onCheckedChange = { onSettingsChange(settings.copy(isAuto = !it)) }
                 )
             }
 
-            // Exposure Time Slider (converted to ms for readability)
-            hardwareInfo.rawExposureRange?.let { range ->
-                val currentMs = settings.exposureTimeNs / 1_000_000f
-                val minMs = range.lower / 1_000_000f
-                val maxMs = (range.upper / 1_000_000f).coerceAtMost(100f) // Cap at 100ms for slider usability
+            Spacer(modifier = Modifier.height(5.dp))
 
-                LabeledSlider(
-                    label = "Exposure (ms)",
-                    value = currentMs,
-                    onValueChange = { onSettingsChange(settings.copy(exposureTimeNs = (it * 1_000_000).toLong())) },
-                    valueRange = minMs..maxMs,
-                    format = "%.2f ms",
-                    enabled = true
+            if (!settings.isAuto && hardwareInfo != null) {
+                // AE Mode Selection
+                DropdownSelector(
+                    label = "AE Mode",
+                    items = hardwareInfo.rawAeModes,
+                    selectedItem = settings.aeMode,
+                    itemLabel = { mode ->
+                        hardwareInfo.autoExposureModes.getOrNull(hardwareInfo.rawAeModes.indexOf(mode)) ?: "Unknown"
+                    },
+                    onItemSelected = { onSettingsChange(settings.copy(aeMode = it)) }
                 )
+
+                // ISO Slider (Only if AE is OFF)
+                if (settings.aeMode == 0) {
+                    hardwareInfo.rawIsoRange?.let { range ->
+                        LabeledSlider(
+                            label = "ISO",
+                            value = settings.iso.toFloat(),
+                            onValueChange = { onSettingsChange(settings.copy(iso = it.toInt())) },
+                            valueRange = range.lower.toFloat()..range.upper.toFloat(),
+                            format = "%.0f",
+                            enabled = true
+                        )
+                    }
+
+                    // Exposure Time Slider (converted to ms for readability)
+                    hardwareInfo.rawExposureRange?.let { range ->
+                        val currentMs = settings.exposureTimeNs / 1_000_000f
+                        val minMs = range.lower / 1_000_000f
+
+                        // Limit exposure time based on current FPS range to prevent FPS drop
+                        val maxExposureMsByFps = settings.fpsRange?.let { 1000f / it.upper } ?: 33.3f
+                        val maxMs = (range.upper / 1_000_000f).coerceAtMost(maxExposureMsByFps)
+
+                        LabeledSlider(
+                            label = "Exposure (ms)",
+                            value = currentMs.coerceIn(minMs, maxMs),
+                            onValueChange = { onSettingsChange(settings.copy(exposureTimeNs = (it * 1_000_000).toLong())) },
+                            valueRange = minMs..maxMs,
+                            format = "%.2f ms",
+                            enabled = true
+                        )
+                    }
+                }
+
+                // AF Mode Selection
+                DropdownSelector(
+                    label = "AF Mode",
+                    items = hardwareInfo.rawAfModes,
+                    selectedItem = settings.afMode,
+                    itemLabel = { mode ->
+                        hardwareInfo.autoFocusModes.getOrNull(hardwareInfo.rawAfModes.indexOf(mode)) ?: "Unknown"
+                    },
+                    onItemSelected = { onSettingsChange(settings.copy(afMode = it)) }
+                )
+
+                // Focus Slider (Only if AF is OFF)
+                val maxFocus = hardwareInfo.minFocusDistance ?: 0f
+                if (settings.afMode == 0 && maxFocus > 0f) {
+                    LabeledSlider(
+                        label = "Lens Focus",
+                        value = settings.focusDistance,
+                        onValueChange = { onSettingsChange(settings.copy(focusDistance = it)) },
+                        valueRange = 0f..maxFocus, // 0.0 (infinity) to minFocusDistance (closest)
+                        steps = (maxFocus / 0.02f).toInt().coerceAtLeast(0),
+                        format = "%.2f dpt",
+                        enabled = true
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ){
+                    // Resolution Selection
+                    DropdownSelector(
+                        label = "Resolution",
+                        items = hardwareInfo.supportedResolutions,
+                        selectedItem = settings.resolution,
+                        itemLabel = { "${it.width} x ${it.height}" },
+                        onItemSelected = { onSettingsChange(settings.copy(resolution = it)) },
+                        placeholder = hardwareInfo.maxResolution
+                    )
+
+                    // FPS Range Selection
+                    DropdownSelector(
+                        label = "FPS Range",
+                        items = hardwareInfo.getSupportedFpsRangesFor(settings.resolution),
+                        selectedItem = settings.fpsRange,
+                        itemLabel = { "${it.lower} - ${it.upper} FPS" },
+                        onItemSelected = { onSettingsChange(settings.copy(fpsRange = it)) }
+                    )
+                }
+            } else if (!settings.isAuto) {
+                Text("Hardware info unavailable for manual control", color = Color.Gray)
             }
-        } else if (!settings.isAuto) {
-            Text("Hardware info unavailable for manual control", color = Color.Gray)
         }
 
-        Spacer(modifier = Modifier.weight(1f))
     }
 }

@@ -1,6 +1,9 @@
 package com.example.ispr.ui.components.tabs
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,10 +36,15 @@ import com.example.ispr.ui.widgets.LabeledSlider
 fun GraphTab(
     result: ProcessingResult?,
     params: ProcessingParameters,
-    onParamsChange: (ProcessingParameters) -> Unit
+    onParamsChange: (ProcessingParameters) -> Unit,
+    activeResolution: android.util.Size? = null,
+    cameraSettings: com.example.ispr.logic.camera.CameraSettings? = null
 ) {
     var autoScale by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
+    val maxWidth = activeResolution?.width?.toFloat() ?: 1280f
+
+    val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
 
     Column(
         modifier = Modifier
@@ -86,25 +94,94 @@ fun GraphTab(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Fixed height for graph to work well inside vertical scroll
-        Graph(
-            result = result,
-            params = params,
-            autoScale = autoScale,
+        val showGraphOverlay = remember { mutableStateOf(false) }
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(200.dp)
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
+        ){
+            Graph(
+                result = result,
+                params = params,
+                autoScale = autoScale,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        onClick = { showGraphOverlay.value = true }
+                    )
+            )
+            if (showGraphOverlay.value)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background.copy(0.5f))
+                        .clickable(
+                            onClick = { showGraphOverlay.value = false }
+                        )
+                ){
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        verticalArrangement = Arrangement.Top
+                    ){
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 50.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Ratiometric")
+                            Switch(
+                                checked = params.isRatiometric,
+                                onCheckedChange = { onParamsChange(params.copy(isRatiometric = it)) }
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 50.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Time View")
+                            Switch(
+                                checked = params.isTimeView,
+                                onCheckedChange = { onParamsChange(params.copy(isTimeView = it)) }
+                            )
+                        }
+                        if (params.isTimeView)
+                            LabeledSlider(
+                                label = "Sample Rate (Hz)",
+                                value = params.sampleRate,
+                                onValueChange = { onParamsChange(params.copy(sampleRate = it)) },
+                                valueRange = 0.1f..maxFps,
+                                format = "%.1f"
+                            )
+                    }
+                }
+        }
 
         // ROI Column Range
         LabeledRangeSlider(
-            label = "Column Range (ROI)",
+            label = "",
+            modifier = Modifier.height(30.dp),
             value = params.minCol.toFloat()..params.maxCol.toFloat(),
             onValueChange = { range ->
                 onParamsChange(params.copy(minCol = range.start.toInt(), maxCol = range.endInclusive.toInt()))
             },
-            valueRange = 0f..1280f, // Assuming standard max, should be dynamic if possible
+            valueRange = 0f..maxWidth,
+            format = "%.0f"
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Moving Average Window
+        LabeledSlider(
+            label = "Smoothing Window",
+            value = params.movingAverageWindow.toFloat(),
+            onValueChange = { onParamsChange(params.copy(movingAverageWindow = it.toInt())) },
+            valueRange = 1f..20f,
             format = "%.0f"
         )
 
@@ -117,20 +194,12 @@ fun GraphTab(
             format = "%.0f"
         )
 
-        // Moving Average Window
-        LabeledSlider(
-            label = "Smoothing Window",
-            value = params.movingAverageWindow.toFloat(),
-            onValueChange = { onParamsChange(params.copy(movingAverageWindow = it.toInt())) },
-            valueRange = 1f..20f,
-            format = "%.0f"
-        )
         Spacer(modifier = Modifier.height(16.dp))
         
         // Summary info
         if (result != null) {
             Text(
-                text = "Min Indices: R:${result.minRedIndex} G:${result.minGreenIndex} B:${result.minBlueIndex}",
+                text = "Min Indices: R:${result.RCursorX} G:${result.GCursorX} B:${result.BCursorX}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

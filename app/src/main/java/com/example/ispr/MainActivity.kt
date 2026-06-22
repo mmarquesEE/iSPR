@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.collectAsState
@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                     contentWindowInsets = WindowInsets()
                 ) { innerPadding ->
                     AdjustableSplitLayout(
+                        initialTopFraction = 0.4f,
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         topContent = {
                             CameraPerimeterDrawing(cutout = viewModel.screenManager.getScreenInfo().cameraRawCutout)
@@ -120,6 +121,7 @@ class MainActivity : ComponentActivity() {
                             val result by viewModel.processingResult.collectAsState()
 
                             TabsLayout(
+                                initialTab = 0,
                                 tabs = listOf(
                                     TabItem(Icons.Default.CameraAlt) {
                                         CameraPreview(
@@ -133,11 +135,15 @@ class MainActivity : ComponentActivity() {
                                             onSourceConfigChange = { viewModel.updateSourceConfiguration(it) }
                                         )
                                     },
-                                    TabItem(Icons.Default.ShowChart) {
+                                    TabItem(Icons.AutoMirrored.Filled.ShowChart) {
+                                        val activeRes by viewModel.cameraManager.activeResolution.collectAsState()
+                                        val settings by viewModel.cameraManager.settings.collectAsState()
                                         GraphTab(
                                             result = result,
                                             params = processingParams,
-                                            onParamsChange = { viewModel.updateProcessingParameters(it) }
+                                            onParamsChange = { viewModel.updateProcessingParameters(it) },
+                                            activeResolution = activeRes,
+                                            cameraSettings = settings
                                         )
                                     },
                                     TabItem(Icons.Default.Info) {

@@ -9,16 +9,18 @@ import kotlinx.coroutines.flow.asStateFlow
  * Result of the image processing pipeline.
  */
 data class ProcessingResult(
-    val redVector: FloatArray,
-    val greenVector: FloatArray,
-    val blueVector: FloatArray,
-    val columns: IntRange,
-    val minRedIndex: Int,
-    val minRedValue: Float,
-    val minGreenIndex: Int,
-    val minGreenValue: Float,
-    val minBlueIndex: Int,
-    val minBlueValue: Float
+    val RChannelY: FloatArray,
+    val GChannelY: FloatArray,
+    val BChannelY: FloatArray,
+    val X: IntRange,
+    val RCursorX: Int,
+    val RCursorY: Float,
+    val GCursorX: Int,
+    val GCursorY: Float,
+    val BCursorX: Int,
+    val BCursorY: Float,
+    val isTimeView: Boolean = false,
+    val timeLabels: LongArray? = null
 )
 
 /**
@@ -31,12 +33,34 @@ class ProcessingFrameProcessor {
     private val _result = MutableStateFlow<ProcessingResult?>(null)
     val result = _result.asStateFlow()
 
+    private var Rref = FloatArray(0)
+    private var Gref = FloatArray(0)
+    private var Bref = FloatArray(0)
+
+    private var lastFrameTimeNs: Long = 0
+
+
     private var params = ProcessingParameters()
+
+    // Time-series buffers
+    private val timeBufferR = mutableListOf<Float>()
+    private val timeBufferG = mutableListOf<Float>()
+    private val timeBufferB = mutableListOf<Float>()
+    private val timeStamps = mutableListOf<Long>()
+    private var lastRecordedTimestampNs: Long = 0
+
+    private val MAX_TIME_POINTS = 500
 
     /**
      * Updates the processing parameters.
      */
     fun updateParameters(newParams: ProcessingParameters) {
+        if (newParams.isTimeView != params.isTimeView) {
+            timeBufferR.clear()
+            timeBufferG.clear()
+            timeBufferB.clear()
+            timeStamps.clear()
+        }
         params = newParams
     }
 
@@ -44,6 +68,8 @@ class ProcessingFrameProcessor {
      * Processes a single YUV_420_888 frame.
      */
     fun processImage(image: Image) {
+        val startTime = System.nanoTime()
+        val frameTimestamp = image.timestamp
         try {
             val width = image.width
             val height = image.height
@@ -75,45 +101,60 @@ class ProcessingFrameProcessor {
             val bVector = FloatArray(colCount)
 
             // 2. Aggregate intensities along rows (for each column)
+            val rowCountInv = 1f / rowCount
+            val uvRowCount = (rowCount + 1) / 2
+            val uvRowCountInv = 1f / uvRowCount
+
             for (i in 0 until colCount) {
                 val actualCol = minCol + i
-                var sumY = 0L
-                var sumU = 0L
-                var sumV = 0L
+                var sumY = 0
+                var sumU = 0
+                var sumV = 0
+
+                val uvColOffset = (actualCol / 2) * uvPixelStride
 
                 for (j in 0 until rowCount) {
                     val actualRow = minRow + j
-
-                    // Y plane
                     sumY += yBuffer.get(actualRow * yRowStride + actualCol * yPixelStride).toInt() and 0xFF
 
-                    // U and V planes
-                    val uvRow = actualRow / 2
-                    val uvCol = actualCol / 2
-                    val uvIndex = uvRow * uvRowStride + uvCol * uvPixelStride
-
-                    sumU += uBuffer.get(uvIndex).toInt() and 0xFF
-                    sumV += vBuffer.get(uvIndex).toInt() and 0xFF
+                    if (j % 2 == 0) {
+                        val uvIndex = (actualRow / 2) * uvRowStride + uvColOffset
+                        sumU += uBuffer.get(uvIndex).toInt() and 0xFF
+                        sumV += vBuffer.get(uvIndex).toInt() and 0xFF
+                    }
                 }
 
-                // Average YUV for the column band
-                val avgY = sumY.toDouble() / rowCount
-                val avgU = sumU.toDouble() / rowCount
-                val avgV = sumV.toDouble() / rowCount
+                // Average YUV for the column band using Float
+                val avgY = sumY * rowCountInv
+                val uNorm = (sumU * uvRowCountInv) - 128f
+                val vNorm = (sumV * uvRowCountInv) - 128f
 
-                // 3. Convert aggregate YUV to RGB (Standard BT.601)
-                val uNorm = avgU - 128.0
-                val vNorm = avgV - 128.0
-
-                rVector[i] = (avgY + 1.402 * vNorm).toFloat().coerceIn(0f, 255f)
-                gVector[i] = (avgY - 0.344136 * uNorm - 0.714136 * vNorm).toFloat().coerceIn(0f, 255f)
-                bVector[i] = (avgY + 1.772 * uNorm).toFloat().coerceIn(0f, 255f)
+                // 3. Convert aggregate YUV to RGB (Standard BT.601) - Float optimized
+                rVector[i] = (avgY + 1.402f * vNorm).coerceIn(0f, 255f)
+                gVector[i] = (avgY - 0.344136f * uNorm - 0.714136f * vNorm).coerceIn(0f, 255f)
+                bVector[i] = (avgY + 1.772f * uNorm).coerceIn(0f, 255f)
             }
 
             // 4. Moving Average (Centered with Padding)
             val smoothedR = applyMovingAverage(rVector, params.movingAverageWindow)
             val smoothedG = applyMovingAverage(gVector, params.movingAverageWindow)
             val smoothedB = applyMovingAverage(bVector, params.movingAverageWindow)
+
+            if (params.isRatiometric && listOf(Rref, Gref, Bref).any { it.isEmpty() }){
+                Rref = smoothedR.copyOf()
+                Gref = smoothedG.copyOf()
+                Bref = smoothedB.copyOf()
+            } else if (!params.isRatiometric && listOf(Rref, Gref, Bref).any { it.isNotEmpty() }) {
+                Rref = FloatArray(0)
+                Gref = FloatArray(0)
+                Bref = FloatArray(0)
+            }
+
+            if (params.isRatiometric){
+                divide(smoothedR, Rref)
+                divide(smoothedG, Gref)
+                divide(smoothedB, Bref)
+            }
 
             // 5. Normalization
             normalize(smoothedR)
@@ -125,18 +166,62 @@ class ProcessingFrameProcessor {
             val (minIdxG, minValG) = findMin(smoothedG)
             val (minIdxB, minValB) = findMin(smoothedB)
 
-            _result.value = ProcessingResult(
-                redVector = smoothedR,
-                greenVector = smoothedG,
-                blueVector = smoothedB,
-                columns = minCol until maxCol,
-                minRedIndex = minIdxR,
-                minRedValue = minValR,
-                minGreenIndex = minIdxG,
-                minGreenValue = minValG,
-                minBlueIndex = minIdxB,
-                minBlueValue = minValB
-            )
+            val currentTime = System.nanoTime()
+            val processingTimeMs = (currentTime - startTime) / 1_000_000.0
+            if (lastFrameTimeNs > 0) {
+                val hz = 1_000_000_000.0 / (currentTime - lastFrameTimeNs)
+                Log.d(TAG, String.format(java.util.Locale.US, "Rate: %.2f Hz | Proc: %.2f ms", hz, processingTimeMs))
+            }
+            lastFrameTimeNs = currentTime
+
+            if (params.isTimeView) {
+                // Time-series mode: collect cursors over time with decimation
+                val minIntervalNs = (1_000_000_000L / params.sampleRate).toLong()
+                if (frameTimestamp - lastRecordedTimestampNs >= minIntervalNs) {
+                    timeBufferR.add(minValR)
+                    timeBufferG.add(minValG)
+                    timeBufferB.add(minValB)
+                    timeStamps.add(frameTimestamp)
+                    lastRecordedTimestampNs = frameTimestamp
+
+                    if (timeBufferR.size > MAX_TIME_POINTS) {
+                        timeBufferR.removeAt(0)
+                        timeBufferG.removeAt(0)
+                        timeBufferB.removeAt(0)
+                        timeStamps.removeAt(0)
+                    }
+                }
+
+                _result.value = ProcessingResult(
+                    RChannelY = timeBufferR.toFloatArray(),
+                    GChannelY = timeBufferG.toFloatArray(),
+                    BChannelY = timeBufferB.toFloatArray(),
+                    X = 0 until timeBufferR.size,
+                    RCursorX = timeBufferR.size - 1,
+                    RCursorY = minValR,
+                    GCursorX = timeBufferG.size - 1,
+                    GCursorY = minValG,
+                    BCursorX = timeBufferB.size - 1,
+                    BCursorY = minValB,
+                    isTimeView = true,
+                    timeLabels = timeStamps.toLongArray()
+                )
+            } else {
+                // Profile mode (default)
+                _result.value = ProcessingResult(
+                    RChannelY = smoothedR,
+                    GChannelY = smoothedG,
+                    BChannelY = smoothedB,
+                    X = minCol until maxCol,
+                    RCursorX = minIdxR,
+                    RCursorY = minValR,
+                    GCursorX = minIdxG,
+                    GCursorY = minValG,
+                    BCursorX = minIdxB,
+                    BCursorY = minValB,
+                    isTimeView = false
+                )
+            }
 
         } catch (e: Exception) {
             Log.e(TAG, "Error processing image", e)
@@ -145,20 +230,34 @@ class ProcessingFrameProcessor {
         }
     }
 
-    private fun applyMovingAverage(input: FloatArray, window: Int): FloatArray {
-        if (window <= 1) return input.copyOf()
+    private fun divide(a: FloatArray, b: FloatArray) {
+        if (a.size != b.size) throw IllegalArgumentException("Arrays must have the same length")
+        for (i in a.indices) {
+            a[i] /= b[i]
+        }
+    }
 
+    private fun applyMovingAverage(input: FloatArray, window: Int): FloatArray {
         val n = input.size
+        if (window <= 1 || n == 0) return input.copyOf()
+
         val output = FloatArray(n)
         val halfWindow = window / 2
+        val windowSize = 2 * halfWindow + 1
+        val invWindowSize = 1f / windowSize
 
-        for (i in 0 until n) {
-            var sum = 0f
-            for (k in -halfWindow..halfWindow) {
-                val index = (i + k).coerceIn(0, n - 1)
-                sum += input[index]
-            }
-            output[i] = sum / (2 * halfWindow + 1)
+        var currentSum = 0f
+        // Initialize first window
+        for (k in -halfWindow..halfWindow) {
+            currentSum += input[k.coerceIn(0, n - 1)]
+        }
+        output[0] = currentSum * invWindowSize
+
+        for (i in 1 until n) {
+            val oldIdx = (i - halfWindow - 1).coerceIn(0, n - 1)
+            val newIdx = (i + halfWindow).coerceIn(0, n - 1)
+            currentSum = currentSum - input[oldIdx] + input[newIdx]
+            output[i] = currentSum * invWindowSize
         }
         return output
     }
