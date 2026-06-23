@@ -6,22 +6,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Result of the image processing pipeline.
+ * Encapsulates the output of a single processing cycle from the [ProcessingFrameProcessor].
+ *
+ * @property rChannelY Intensity profile (or time-series) for the Red channel.
+ * @property gChannelY Intensity profile (or time-series) for the Green channel.
+ * @property bChannelY Intensity profile (or time-series) for the Blue channel.
+ * @property x The domain of the data (e.g., column indices in Profile mode, or point indices in Time-Series mode).
+ * @property rCursorX The horizontal index of the detected feature (usually the minimum) for Red.
+ * @property rCursorY The vertical intensity value at the detected feature for Red.
+ * @property gCursorX The horizontal index of the detected feature (usually the minimum) for Green.
+ * @property gCursorY The vertical intensity value at the detected feature for Green.
+ * @property bCursorX The horizontal index of the detected feature (usually the minimum) for Blue.
+ * @property bCursorY The vertical intensity value at the detected feature for Blue.
+ * @property timeLabels Optional array of nanosecond timestamps corresponding to each data point.
+ * @property initialTimestampS The reference timestamp (start of session) used for relative time calculations.
  */
 data class ProcessingResult(
-    val RChannelY: FloatArray,
-    val GChannelY: FloatArray,
-    val BChannelY: FloatArray,
-    val X: IntRange,
-    val RCursorX: Int,
-    val RCursorY: Float,
-    val GCursorX: Int,
-    val GCursorY: Float,
-    val BCursorX: Int,
-    val BCursorY: Float,
-    val isTimeView: Boolean = false,
-    val timeLabels: LongArray? = null,
-    val initialTimestampNs: Long = 0L
+    val rChannelY: FloatArray,
+    val gChannelY: FloatArray,
+    val bChannelY: FloatArray,
+    val x: IntRange,
+    val rCursorX: Int,
+    val rCursorY: Float,
+    val gCursorX: Int,
+    val gCursorY: Float,
+    val bCursorX: Int,
+    val bCursorY: Float,
+    val timeLabels: FloatArray? = null,
+    val initialTimestampS: Float = 0f
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -29,36 +41,34 @@ data class ProcessingResult(
 
         other as ProcessingResult
 
-        if (RCursorX != other.RCursorX) return false
-        if (RCursorY != other.RCursorY) return false
-        if (GCursorX != other.GCursorX) return false
-        if (GCursorY != other.GCursorY) return false
-        if (BCursorX != other.BCursorX) return false
-        if (BCursorY != other.BCursorY) return false
-        if (isTimeView != other.isTimeView) return false
-        if (initialTimestampNs != other.initialTimestampNs) return false
-        if (!RChannelY.contentEquals(other.RChannelY)) return false
-        if (!GChannelY.contentEquals(other.GChannelY)) return false
-        if (!BChannelY.contentEquals(other.BChannelY)) return false
-        if (X != other.X) return false
+        if (rCursorX != other.rCursorX) return false
+        if (rCursorY != other.rCursorY) return false
+        if (gCursorX != other.gCursorX) return false
+        if (gCursorY != other.gCursorY) return false
+        if (bCursorX != other.bCursorX) return false
+        if (bCursorY != other.bCursorY) return false
+        if (initialTimestampS != other.initialTimestampS) return false
+        if (!rChannelY.contentEquals(other.rChannelY)) return false
+        if (!gChannelY.contentEquals(other.gChannelY)) return false
+        if (!bChannelY.contentEquals(other.bChannelY)) return false
+        if (x != other.x) return false
         if (!timeLabels.contentEquals(other.timeLabels)) return false
 
         return true
     }
 
     override fun hashCode(): Int {
-        var result = RCursorX
-        result = 31 * result + RCursorY.hashCode()
-        result = 31 * result + GCursorX
-        result = 31 * result + GCursorY.hashCode()
-        result = 31 * result + BCursorX
-        result = 31 * result + BCursorY.hashCode()
-        result = 31 * result + isTimeView.hashCode()
-        result = 31 * result + initialTimestampNs.hashCode()
-        result = 31 * result + RChannelY.contentHashCode()
-        result = 31 * result + GChannelY.contentHashCode()
-        result = 31 * result + BChannelY.contentHashCode()
-        result = 31 * result + X.hashCode()
+        var result = rCursorX
+        result = 31 * result + rCursorY.hashCode()
+        result = 31 * result + gCursorX
+        result = 31 * result + gCursorY.hashCode()
+        result = 31 * result + bCursorX
+        result = 31 * result + bCursorY.hashCode()
+        result = 31 * result + initialTimestampS.hashCode()
+        result = 31 * result + rChannelY.contentHashCode()
+        result = 31 * result + gChannelY.contentHashCode()
+        result = 31 * result + bChannelY.contentHashCode()
+        result = 31 * result + x.hashCode()
         result = 31 * result + (timeLabels?.contentHashCode() ?: 0)
         return result
     }
@@ -66,22 +76,31 @@ data class ProcessingResult(
 
 /**
  * Handles real-time image processing on camera frames.
- * Extracts intensity profiles for R, G, and B channels within a specified ROI.
+ *
+ * This processor extracts intensity profiles for R, G, and B channels from YUV_420_888
+ * image frames. It supports two main modes:
+ * 1. **Profile Mode**: Analyzes a single frame to show the intensity distribution across
+ *    a horizontal cross-section (ROI).
+ * 2. **Time-Series Mode**: Tracks the minimum intensity point of each channel over time,
+ *    useful for monitoring SPR (Surface Plasmon Resonance) shifts.
+ *
+ * Key features include:
+ * - Ratiometric processing (normalization against a reference frame).
+ * - Adjustable smoothing (moving average).
+ * - Sub-sampling/Decimation for time-series data storage.
+ * - Dynamic ROI (Region of Interest) selection.
  */
 class ProcessingFrameProcessor {
-    private val TAG = "ProcessingFrameProcessor"
+    private val logTag = "ProcessingFrameProcessor"
 
     var onParametersChange: ((ProcessingParameters) -> Unit)? = null
 
     private val _result = MutableStateFlow<ProcessingResult?>(null)
     val result = _result.asStateFlow()
 
-    private var Rref = FloatArray(0)
-    private var Gref = FloatArray(0)
-    private var Bref = FloatArray(0)
-
-    private var lastFrameTimeNs: Long = 0
-
+    private var rRef = FloatArray(0)
+    private var gRef = FloatArray(0)
+    private var bRef = FloatArray(0)
 
     private var params = ProcessingParameters()
 
@@ -89,11 +108,11 @@ class ProcessingFrameProcessor {
     private val timeBufferR = mutableListOf<Float>()
     private val timeBufferG = mutableListOf<Float>()
     private val timeBufferB = mutableListOf<Float>()
-    private val timeStamps = mutableListOf<Long>()
-    private var lastRecordedTimestampNs: Long = 0
-    private var initialTimestampNs: Long = 0
+    private val timeStamps = mutableListOf<Float>()
+    private var lastRecordedTimestampS: Float = 0f
+    private var initialTimestampS: Float = 0f
 
-    private val MAX_TIME_POINTS = 500
+    private val matTimePoints = 500
 
     /**
      * Updates the processing parameters.
@@ -104,7 +123,7 @@ class ProcessingFrameProcessor {
             timeBufferG.clear()
             timeBufferB.clear()
             timeStamps.clear()
-            initialTimestampNs = 0
+            initialTimestampS = 0f
         }
         params = newParams
     }
@@ -113,8 +132,9 @@ class ProcessingFrameProcessor {
      * Processes a single YUV_420_888 frame.
      */
     fun processImage(image: Image) {
-        val startTime = System.nanoTime()
-        val frameTimestamp = image.timestamp
+
+        val frameTimestampS = image.timestamp / 1_000_000_000f
+
         try {
             val width = image.width
             val height = image.height
@@ -185,20 +205,20 @@ class ProcessingFrameProcessor {
             val smoothedG = applyMovingAverage(gVector, params.movingAverageWindow)
             val smoothedB = applyMovingAverage(bVector, params.movingAverageWindow)
 
-            if (params.isRatiometric && listOf(Rref, Gref, Bref).any { it.isEmpty() }){
-                Rref = smoothedR.copyOf()
-                Gref = smoothedG.copyOf()
-                Bref = smoothedB.copyOf()
-            } else if (!params.isRatiometric && listOf(Rref, Gref, Bref).any { it.isNotEmpty() }) {
-                Rref = FloatArray(0)
-                Gref = FloatArray(0)
-                Bref = FloatArray(0)
+            if (params.isRatiometric && listOf(rRef, gRef, bRef).any { it.isEmpty() }){
+                rRef = smoothedR.copyOf()
+                gRef = smoothedG.copyOf()
+                bRef = smoothedB.copyOf()
+            } else if (!params.isRatiometric && listOf(rRef, gRef, bRef).any { it.isNotEmpty() }) {
+                rRef = FloatArray(0)
+                gRef = FloatArray(0)
+                bRef = FloatArray(0)
             }
 
             if (params.isRatiometric){
-                divide(smoothedR, Rref)
-                divide(smoothedG, Gref)
-                divide(smoothedB, Bref)
+                divide(smoothedR, rRef)
+                divide(smoothedG, gRef)
+                divide(smoothedB, bRef)
             }
 
             // 5. Normalization
@@ -211,27 +231,19 @@ class ProcessingFrameProcessor {
             val (minIdxG, minValG) = findMin(smoothedG)
             val (minIdxB, minValB) = findMin(smoothedB)
 
-            val currentTime = System.nanoTime()
-            val processingTimeMs = (currentTime - startTime) / 1_000_000.0
-            if (lastFrameTimeNs > 0) {
-                val hz = 1_000_000_000.0 / (currentTime - lastFrameTimeNs)
-                Log.d(TAG, String.format(java.util.Locale.US, "Rate: %.2f Hz | Proc: %.2f ms", hz, processingTimeMs))
-            }
-            lastFrameTimeNs = currentTime
-
             if (params.isTimeView) {
                 // Time-series mode: collect cursors over time with decimation
-                val minIntervalNs = (1_000_000_000L / params.sampleRate).toLong()
-                if (frameTimestamp - lastRecordedTimestampNs >= minIntervalNs) {
-                    if (timeStamps.isEmpty()) initialTimestampNs = frameTimestamp
+                val minIntervalS = (1f / params.sampleRate)
+                if (frameTimestampS - lastRecordedTimestampS >= minIntervalS) {
+                    if (timeStamps.isEmpty()) initialTimestampS = frameTimestampS
                     
-                    timeBufferR.add(minValR)
-                    timeBufferG.add(minValG)
-                    timeBufferB.add(minValB)
-                    timeStamps.add(frameTimestamp)
-                    lastRecordedTimestampNs = frameTimestamp
+                    timeBufferR.add(minIdxR.toFloat())
+                    timeBufferG.add(minIdxG.toFloat())
+                    timeBufferB.add(minIdxB.toFloat())
+                    timeStamps.add(frameTimestampS)
+                    lastRecordedTimestampS = frameTimestampS
 
-                    if (timeBufferR.size > MAX_TIME_POINTS) {
+                    if (timeBufferR.size > matTimePoints) {
                         timeBufferR.removeAt(0)
                         timeBufferG.removeAt(0)
                         timeBufferB.removeAt(0)
@@ -241,46 +253,44 @@ class ProcessingFrameProcessor {
 
                 // Roll-off detection: If viewing history that is no longer in buffer, force live mode
                 if (!params.isLive && timeStamps.isNotEmpty()) {
-                    val bufferStartTime = (timeStamps.first() - initialTimestampNs) / 1_000_000_000f
+                    val bufferStartTime = (timeStamps.first() - initialTimestampS)
                     if (params.maxTime < bufferStartTime) {
                         onParametersChange?.invoke(params.copy(isLive = true))
                     }
                 }
 
                 _result.value = ProcessingResult(
-                    RChannelY = timeBufferR.toFloatArray(),
-                    GChannelY = timeBufferG.toFloatArray(),
-                    BChannelY = timeBufferB.toFloatArray(),
-                    X = 0 until timeBufferR.size,
-                    RCursorX = timeBufferR.size - 1,
-                    RCursorY = minValR,
-                    GCursorX = timeBufferG.size - 1,
-                    GCursorY = minValG,
-                    BCursorX = timeBufferB.size - 1,
-                    BCursorY = minValB,
-                    isTimeView = true,
-                    timeLabels = timeStamps.toLongArray(),
-                    initialTimestampNs = initialTimestampNs
+                    rChannelY = timeBufferR.toFloatArray(),
+                    gChannelY = timeBufferG.toFloatArray(),
+                    bChannelY = timeBufferB.toFloatArray(),
+                    x = 0 until timeBufferR.size,
+                    rCursorX = timeBufferR.size - 1,
+                    rCursorY = minValR,
+                    gCursorX = timeBufferG.size - 1,
+                    gCursorY = minValG,
+                    bCursorX = timeBufferB.size - 1,
+                    bCursorY = minValB,
+                    timeLabels = timeStamps.toFloatArray(),
+                    initialTimestampS = initialTimestampS
                 )
             } else {
                 // Profile mode (default)
                 _result.value = ProcessingResult(
-                    RChannelY = smoothedR,
-                    GChannelY = smoothedG,
-                    BChannelY = smoothedB,
-                    X = minCol until maxCol,
-                    RCursorX = minIdxR,
-                    RCursorY = minValR,
-                    GCursorX = minIdxG,
-                    GCursorY = minValG,
-                    BCursorX = minIdxB,
-                    BCursorY = minValB,
-                    isTimeView = false
+                    rChannelY = smoothedR,
+                    gChannelY = smoothedG,
+                    bChannelY = smoothedB,
+                    x = minCol until maxCol,
+                    rCursorX = minIdxR,
+                    rCursorY = minValR,
+                    gCursorX = minIdxG,
+                    gCursorY = minValG,
+                    bCursorX = minIdxB,
+                    bCursorY = minValB
                 )
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing image", e)
+            Log.e(logTag, "Error processing image", e)
         } finally {
             image.close()
         }

@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
                             val result by viewModel.processingResult.collectAsState()
 
                             TabsLayout(
-                                initialTab = 0,
+                                initialTab = 2,
                                 tabs = listOf(
                                     TabItem(Icons.Default.CameraAlt) {
                                         CameraPreview(

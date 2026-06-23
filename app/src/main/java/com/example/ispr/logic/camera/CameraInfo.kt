@@ -22,7 +22,7 @@ import com.example.ispr.ui.widgets.InfoRowContent
  * @property facing Direction the camera is facing (expected to be FRONT).
  * @property sensorOrientation Clockwise angle that the sensor image needs to be rotated by.
  * @property autoExposureModes List of supported auto-exposure modes.
- * @property autoFocusModes List of supported auto-focus modes.
+ * @property autoFocusModes List of supported autofocus modes.
  */
 class CameraHardwareInfo(
     val modelName: String,

@@ -51,7 +51,7 @@ data class CameraSettings(
  * - Lifecycle-aware management via [resume] and [pause] methods.
  */
 class CameraStreamManager(context: Context) {
-    private val TAG = "CameraStreamManager"
+    private val logTag = "CameraStreamManager"
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
@@ -120,7 +120,7 @@ class CameraStreamManager(context: Context) {
             backgroundThread = null
             backgroundHandler = null
         } catch (e: InterruptedException) {
-            Log.e(TAG, "Interrupted while stopping background thread", e)
+            Log.e(logTag, "Interrupted while stopping background thread", e)
         }
     }
 
@@ -159,7 +159,7 @@ class CameraStreamManager(context: Context) {
 
                 // Log available FPS ranges for debugging
                 val ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
-                Log.d(TAG, "Available FPS Ranges: ${ranges?.contentToString()}")
+                Log.d(logTag, "Available FPS Ranges: ${ranges?.contentToString()}")
 
                 // Prefer setting resolution, otherwise fallback to 720p/480p logic
                 val bestSize = _settings.value.resolution ?: outputSizes.filter { it.width <= 1280 && it.height <= 720 }
@@ -219,7 +219,7 @@ class CameraStreamManager(context: Context) {
                     }
                 }, backgroundHandler)
             } catch (e: Exception) {
-                Log.e(TAG, "Error opening camera", e)
+                Log.e(logTag, "Error opening camera", e)
                 cameraOpenCloseLock.release()
             }
         }
@@ -275,11 +275,11 @@ class CameraStreamManager(context: Context) {
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {
-                    Log.e(TAG, "Capture session configuration failed")
+                    Log.e(logTag, "Capture session configuration failed")
                 }
             }, backgroundHandler)
         } catch (e: CameraAccessException) {
-            Log.e(TAG, "Camera access exception", e)
+            Log.e(logTag, "Camera access exception", e)
         }
     }
 
@@ -406,7 +406,7 @@ class CameraStreamManager(context: Context) {
 
             session.setRepeatingRequest(builder.build(), null, backgroundHandler)
         } catch (e: CameraAccessException) {
-            Log.e(TAG, "Failed to update capture request", e)
+            Log.e(logTag, "Failed to update capture request", e)
         }
     }
 

@@ -55,52 +55,52 @@ fun Graph(
             val filteredR: FloatArray
             val filteredG: FloatArray
             val filteredB: FloatArray
-            val displayFirstTs: Long
-            val displayLastTs: Long
+            val displayFirstTs: Float
+            val displayLastTs: Float
 
-            if (result.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
-                val baseTs = result.initialTimestampNs
+            if (params.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
+                val baseTs = result.initialTimestampS
                 
                 if (params.isLive) {
-                    filteredR = result.RChannelY
-                    filteredG = result.GChannelY
-                    filteredB = result.BChannelY
+                    filteredR = result.rChannelY
+                    filteredG = result.gChannelY
+                    filteredB = result.bChannelY
                     displayFirstTs = result.timeLabels.first()
                     displayLastTs = result.timeLabels.last()
                 } else {
-                    val startTimeNs = baseTs + (params.minTime * 1_000_000_000L).toLong()
-                    val endTimeNs = baseTs + (params.maxTime * 1_000_000_000L).toLong()
+                    val startTimeS = baseTs + params.minTime
+                    val endTimeS = baseTs + params.maxTime
 
                     val indices = result.timeLabels.indices.filter {
-                        result.timeLabels[it] in startTimeNs..endTimeNs
+                        result.timeLabels[it] in startTimeS..endTimeS
                     }
 
                     if (indices.isNotEmpty()) {
-                        filteredR = indices.map { result.RChannelY[it] }.toFloatArray()
-                        filteredG = indices.map { result.GChannelY[it] }.toFloatArray()
-                        filteredB = indices.map { result.BChannelY[it] }.toFloatArray()
+                        filteredR = indices.map { result.rChannelY[it] }.toFloatArray()
+                        filteredG = indices.map { result.gChannelY[it] }.toFloatArray()
+                        filteredB = indices.map { result.bChannelY[it] }.toFloatArray()
                         displayFirstTs = result.timeLabels[indices.first()]
                         displayLastTs = result.timeLabels[indices.last()]
                     } else {
                         filteredR = floatArrayOf()
                         filteredG = floatArrayOf()
                         filteredB = floatArrayOf()
-                        displayFirstTs = startTimeNs
-                        displayLastTs = endTimeNs
+                        displayFirstTs = startTimeS
+                        displayLastTs = endTimeS
                     }
                 }
             } else {
-                filteredR = result.RChannelY
-                filteredG = result.GChannelY
-                filteredB = result.BChannelY
-                displayFirstTs = 0L
-                displayLastTs = 0L
+                filteredR = result.rChannelY
+                filteredG = result.gChannelY
+                filteredB = result.bChannelY
+                displayFirstTs = 0f
+                displayLastTs = 0f
             }
 
             val minY: Float
             val maxY: Float
 
-            if (autoScale || result.isTimeView) {
+            if (autoScale || params.isTimeView) {
                 val rMin = if (params.isRedEnabled && filteredR.isNotEmpty()) filteredR.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
                 val gMin = if (params.isGreenEnabled && filteredG.isNotEmpty()) filteredG.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
                 val bMin = if (params.isBlueEnabled && filteredB.isNotEmpty()) filteredB.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
@@ -122,12 +122,12 @@ fun Graph(
             xTicks.forEachIndexed { index, tick ->
                 val x = marginL + (tick * graphW)
                 
-                val label = if (result.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
-                    val baseTs = result.initialTimestampNs
-                    val currentTs = displayFirstTs + (tick * (displayLastTs - displayFirstTs)).toLong()
-                    String.format(Locale.US, "%.1fs", (currentTs - baseTs) / 1_000_000_000.0)
+                val label = if (params.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
+                    val baseTs = result.initialTimestampS
+                    val currentTs = displayFirstTs + (tick * (displayLastTs - displayFirstTs))
+                    String.format(Locale.US, "%.1fs", (currentTs - baseTs))
                 } else {
-                    val colIdx = result.X.first + (tick * (result.X.last - result.X.first)).toInt()
+                    val colIdx = result.x.first + (tick * (result.x.last - result.x.first)).toInt()
                     colIdx.toString()
                 }
                 
@@ -175,10 +175,10 @@ fun Graph(
                     offsetX = marginL,
                     minY, rangeY
                 )
-                if (!result.isTimeView) {
+                if (!params.isTimeView) {
                     drawMinMarkers(
-                        result.RCursorX, result.RCursorY, Color.Red,
-                        vectorSize = result.RChannelY.size,
+                        result.rCursorX, result.rCursorY, Color.Red,
+                        vectorSize = result.rChannelY.size,
                         width = graphW,
                         height = graphH,
                         offsetX = marginL,
@@ -193,10 +193,10 @@ fun Graph(
                     height = graphH,
                     offsetX = marginL, minY, rangeY
                 )
-                if (!result.isTimeView) {
+                if (!params.isTimeView) {
                     drawMinMarkers(
-                        result.GCursorX, result.GCursorY, Color.Green,
-                        vectorSize = result.GChannelY.size,
+                        result.gCursorX, result.gCursorY, Color.Green,
+                        vectorSize = result.gChannelY.size,
                         width = graphW, graphH,
                         offsetX = marginL, minY, rangeY
                     )
@@ -210,10 +210,10 @@ fun Graph(
                     offsetX = marginL,
                     minY, rangeY
                 )
-                if (!result.isTimeView) {
+                if (!params.isTimeView) {
                     drawMinMarkers(
-                        result.BCursorX, result.BCursorY, Color.Blue,
-                        vectorSize = result.BChannelY.size,
+                        result.bCursorX, result.bCursorY, Color.Blue,
+                        vectorSize = result.bChannelY.size,
                         width = graphW,
                         height = graphH,
                         offsetX = marginL,

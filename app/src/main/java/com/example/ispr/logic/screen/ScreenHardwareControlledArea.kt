@@ -120,7 +120,7 @@ class ScreenHardwareControlledArea(private val surfaceView: SurfaceView) : Surfa
     }
 
     /**
-     * Placeholder for dynamic animations. Currently draws 2D spatial white noise.
+     * Placeholder for dynamic animations. Currently, draws 2D spatial white noise.
      */
     private fun drawDynamicContent(canvas: Canvas, bounds: Rect, paint: Paint) {
         generateWhiteNoise(canvas, bounds, paint)

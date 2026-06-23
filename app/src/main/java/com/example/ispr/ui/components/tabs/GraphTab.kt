@@ -18,6 +18,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,12 +41,9 @@ fun GraphTab(
     activeResolution: android.util.Size? = null,
     cameraSettings: com.example.ispr.logic.camera.CameraSettings? = null
 ) {
-    var autoScale by remember { mutableStateOf(false) }
-    var capturedBounds by remember(params.isTimeView) { mutableStateOf(0f..30f) }
-    val scrollState = rememberScrollState()
-    val maxWidth = activeResolution?.width?.toFloat() ?: 1280f
 
-    val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
+    var autoScale by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     Column(
         modifier = Modifier
@@ -94,7 +92,7 @@ fun GraphTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Fixed height for graph to work well inside vertical scroll
+        val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
         val showGraphOverlay = remember { mutableStateOf(false) }
         Box(
             modifier = Modifier
@@ -163,73 +161,52 @@ fun GraphTab(
                 }
         }
 
-        val base = result?.initialTimestampNs ?: 0L
-        val totalAvailableTime = if (result?.timeLabels?.isNotEmpty() == true) (result.timeLabels.last() - base) / 1e9f else 30f
-        val bufferStartTime = if (result?.timeLabels?.isNotEmpty() == true) (result.timeLabels.first() - base) / 1e9f else 0f
-
-        if (params.isTimeView) {
-            // Update the visual placeholder only when transitioning to Live
-            androidx.compose.runtime.LaunchedEffect(params.isLive) {
-                if (params.isLive) {
-                    capturedBounds = bufferStartTime..totalAvailableTime
-                }
-            }
-        }
+        var rangeSliderVal by remember { mutableStateOf(0f..1f) }
+        var minTime by remember { mutableFloatStateOf(0f) }
+        var maxTime by remember { mutableFloatStateOf(0f) }
 
         LabeledRangeSlider(
             modifier = Modifier
                 .fillMaxWidth(0.85f)
                 .align(Alignment.CenterHorizontally),
             label = "",
-            value = if (params.isTimeView) {
-                if (params.isLive) capturedBounds else params.minTime..params.maxTime
-            } else {
-                params.minCol.toFloat()..params.maxCol.toFloat()
-            },
-            onValueChange = { range ->
-                if (params.isTimeView) {
-                    if (params.isLive) {
-                        // CAPTURE EVENT: Start of user interaction
-                        val now = bufferStartTime..totalAvailableTime
-                        capturedBounds = now
-                        
-                        // Map the interaction from the stale placeholder to the new captured range
-                        // (To ensure the handles don't jump if the buffer grew significantly)
-                        val startPct = (range.start - capturedBounds.start) / (capturedBounds.endInclusive - capturedBounds.start)
-                        val endPct = (range.endInclusive - capturedBounds.start) / (capturedBounds.endInclusive - capturedBounds.start)
-                        
-                        val mappedStart = now.start + startPct * (now.endInclusive - now.start)
-                        val mappedEnd = now.start + endPct * (now.endInclusive - now.start)
-
-                        onParamsChange(params.copy(
-                            isLive = false,
-                            minTime = mappedStart.coerceIn(now),
-                            maxTime = mappedEnd.coerceIn(now)
-                        ))
-                    } else {
-                        // NAVIGATION within fixed bounds
-                        // RELEASE EVENT: Handles returned to edges
-                        val atEdges = range.start <= capturedBounds.start + 0.1f && 
-                                      range.endInclusive >= capturedBounds.endInclusive - 0.1f
-                        
-                        if (atEdges) {
-                            onParamsChange(params.copy(isLive = true))
-                        } else {
-                            onParamsChange(params.copy(
-                                minTime = range.start,
-                                maxTime = range.endInclusive
-                            ))
-                        }
-                    }
-                } else {
-                    onParamsChange(params.copy(
-                        minCol = range.start.toInt(),
-                        maxCol = range.endInclusive.toInt()
-                    ))
-                }
-            },
-            valueRange = if (params.isTimeView) capturedBounds else 0f..maxWidth,
             format = if (params.isTimeView) "%.1fs" else "%.0f",
+            value = rangeSliderVal,
+            valueRange = 0f..1f,
+            onValueChange = { range ->
+
+                rangeSliderVal = range
+
+                if(!params.isTimeView) {
+                    if (activeResolution != null)
+                        onParamsChange(params.copy(
+                            minCol = (range.start * activeResolution.width.toFloat()).toInt(),
+                            maxCol = (range.endInclusive * activeResolution.width.toFloat()).toInt()
+                        ))
+                } else if (result != null && result.timeLabels != null) {
+                    if (params.isLive) {
+                        minTime = result.initialTimestampS
+                        maxTime = result.timeLabels.max()
+                        onParamsChange(
+                            params.copy(
+                                isLive = false,
+                                minTime = minTime,
+                                maxTime = maxTime
+                            )
+                        )
+                    } else if (range.start <= 0.05f && range.endInclusive >= 0.95f)
+                        onParamsChange(
+                            params.copy(
+                                isLive = true
+                            )
+                        )
+                    else
+                        onParamsChange(params.copy(
+                            minTime = range.start * minTime,
+                            maxTime = range.endInclusive * maxTime
+                        ))
+                }
+            }
         )
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -257,7 +234,7 @@ fun GraphTab(
         // Summary info
         if (result != null) {
             Text(
-                text = "Min Indices: R:${result.RCursorX} G:${result.GCursorX} B:${result.BCursorX}",
+                text = "Min Indices: R:${result.rCursorX} G:${result.gCursorX} B:${result.bCursorX}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

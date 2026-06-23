@@ -104,10 +104,10 @@ fun TabsLayout(
                 // Use fixed constraints to ensure each tab is exactly the viewport size.
                 // This prevents "squeezing" if the child content uses wrap-content widths.
                 val childConstraints = Constraints.fixed(width, height)
-                val placeables = measurables.map { it.measure(childConstraints) }
+                val movables = measurables.map { it.measure(childConstraints) }
 
                 layout(width, height) {
-                    placeables.forEachIndexed { index, placeable ->
+                    movables.forEachIndexed { index, placeable ->
                         placeable.placeRelative(x = index * width, y = 0)
                     }
                 }

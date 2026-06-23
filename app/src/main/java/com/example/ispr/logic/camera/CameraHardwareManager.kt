@@ -123,7 +123,6 @@ class CameraHardwareManager(private val context: Context) {
                 1 -> "ON"
                 2 -> "ON_AUTO_FLASH"
                 3 -> "ON_ALWAYS_FLASH"
-                4 -> "ON_AUTO_FLASH_REDEYE"
                 else -> "ID_$it"
             }
         } ?: emptyList()
@@ -137,7 +136,7 @@ class CameraHardwareManager(private val context: Context) {
                 2 -> "MACRO"
                 3 -> "CONTINUOUS_VIDEO"
                 4 -> "CONTINUOUS_PICTURE"
-                5 -> "EDOF"
+                5 -> "EDF"
                 else -> "ID_$it"
             }
         } ?: emptyList()
