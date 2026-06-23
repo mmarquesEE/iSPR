@@ -26,6 +26,7 @@ class CameraHardwareManager(private val context: Context) {
      * Flow emitting the currently active camera resolution.
      */
     val activeResolution = cameraStreamManager.activeResolution
+    val settings = cameraStreamManager.settings
 
     /**
      * Starts or resumes the camera stream.
@@ -74,7 +75,7 @@ class CameraHardwareManager(private val context: Context) {
     /**
      * Queries the system for the front-facing camera hardware information.
      */
-    fun getCameraInfo(): com.example.ispr.logic.camera.CameraHardwareInfo? {
+    fun getCameraInfo(): CameraHardwareInfo? {
         val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
             val cameraIds = manager.cameraIdList
@@ -93,7 +94,7 @@ class CameraHardwareManager(private val context: Context) {
         return null
     }
 
-    private fun extractCameraInfo(chars: CameraCharacteristics): com.example.ispr.logic.camera.CameraHardwareInfo {
+    private fun extractCameraInfo(chars: CameraCharacteristics): CameraHardwareInfo {
         val sensorSize = chars.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)
         val focalLengths = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)
         val apertures = chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_APERTURES)
@@ -115,6 +116,7 @@ class CameraHardwareManager(private val context: Context) {
         }
 
         val aeModes = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_MODES)
+        val aeModesRaw = aeModes?.toList() ?: emptyList()
         val aeModesList = aeModes?.map {
             when(it) {
                 0 -> "OFF"
@@ -127,6 +129,7 @@ class CameraHardwareManager(private val context: Context) {
         } ?: emptyList()
 
         val afModes = chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES)
+        val afModesRaw = afModes?.toList() ?: emptyList()
         val afModesList = afModes?.map {
             when(it) {
                 0 -> "OFF"
@@ -138,6 +141,15 @@ class CameraHardwareManager(private val context: Context) {
                 else -> "ID_$it"
             }
         } ?: emptyList()
+
+        val minFocusDistance = chars.get(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE)
+        val supportedResolutions = streamMap?.getOutputSizes(ImageFormat.YUV_420_888)?.toList() ?: emptyList()
+        val fpsRanges = chars.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)?.toList() ?: emptyList()
+
+        val resolutionMaxFps = supportedResolutions.associateWith { size ->
+            val minFrameDuration = streamMap?.getOutputMinFrameDuration(ImageFormat.YUV_420_888, size) ?: 0L
+            if (minFrameDuration > 0) (1_000_000_000L / minFrameDuration).toInt() else 30
+        }
 
         return CameraHardwareInfo(
             modelName = Build.MODEL, // Android doesn't directly provide a camera "Model Name" usually
@@ -157,7 +169,13 @@ class CameraHardwareManager(private val context: Context) {
             facing = "Front",
             sensorOrientation = chars.get(CameraCharacteristics.SENSOR_ORIENTATION)?.toString() ?: "Unknown",
             autoExposureModes = aeModesList,
-            autoFocusModes = afModesList
+            rawAeModes = aeModesRaw,
+            autoFocusModes = afModesList,
+            rawAfModes = afModesRaw,
+            minFocusDistance = minFocusDistance,
+            supportedResolutions = supportedResolutions,
+            supportedFpsRanges = fpsRanges,
+            resolutionMaxFps = resolutionMaxFps
         )
     }
 }
@@ -179,9 +197,9 @@ fun CameraPermissionRequester(
     )
 
     LaunchedEffect(Unit) {
-        val permission = android.Manifest.permission.CAMERA
-        if (androidx.core.content.ContextCompat.checkSelfPermission(context, permission) 
-            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        val permission = Manifest.permission.CAMERA
+        if (ContextCompat.checkSelfPermission(context, permission)
+            != PackageManager.PERMISSION_GRANTED) {
             launcher.launch(permission)
         } else {
             onPermissionResult(true)

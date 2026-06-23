@@ -90,6 +90,7 @@ class MainActivity : ComponentActivity() {
                     contentWindowInsets = WindowInsets()
                 ) { innerPadding ->
                     AdjustableSplitLayout(
+                        initialTopFraction = 0.4f,
                         modifier = Modifier.fillMaxSize().padding(innerPadding),
                         topContent = {
                             CameraPerimeterDrawing(cutout = viewModel.screenManager.getScreenInfo().cameraRawCutout)
@@ -120,6 +121,7 @@ class MainActivity : ComponentActivity() {
                             val result by viewModel.processingResult.collectAsState()
 
                             TabsLayout(
+                                initialTab = 0,
                                 tabs = listOf(
                                     TabItem(Icons.Default.CameraAlt) {
                                         CameraPreview(
@@ -134,14 +136,14 @@ class MainActivity : ComponentActivity() {
                                         )
                                     },
                                     TabItem(Icons.AutoMirrored.Filled.ShowChart) {
+                                        val activeRes by viewModel.cameraManager.activeResolution.collectAsState()
+                                        val settings by viewModel.cameraManager.settings.collectAsState()
                                         GraphTab(
                                             result = result,
                                             params = processingParams,
                                             onParamsChange = { viewModel.updateProcessingParameters(it) },
-                                            onReferenceToggle = { isChecked ->
-                                                if (isChecked) viewModel.captureReference()
-                                                else viewModel.clearReference()
-                                            }
+                                            activeResolution = activeRes,
+                                            cameraSettings = settings
                                         )
                                     },
                                     TabItem(Icons.Default.Info) {

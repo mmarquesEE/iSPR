@@ -6,35 +6,35 @@
     <group
         android:translateX="4"
         android:translateY="-4">
-
+        <!-- The Prism -->
         <path
-            android:fillColor="#E2E8F0"
             android:pathData="M50,35 L80,75 L20,75 Z"
+            android:fillColor="#E2E8F0"
             android:strokeColor="#94A3B8"
-            android:strokeWidth="1" />
-
+            android:strokeWidth="1"/>
+        <!-- Incident Light -->
         <path
             android:pathData="M15,50 L50,75"
             android:strokeColor="#F44336"
             android:strokeWidth="2.5"
-            android:strokeLineCap="round" />
-
+            android:strokeLineCap="round"/>
+        <!-- Reflected Light -->
         <path
             android:pathData="M50,75 L85,48"
             android:strokeColor="#F44336"
             android:strokeWidth="2.5"
-            android:strokeLineCap="round" />
-
+            android:strokeLineCap="round"/>
+        <!-- Sensing Surface (Gold) -->
         <path
             android:pathData="M20,77 L80,77"
             android:strokeColor="#FACC15"
             android:strokeWidth="3"
-            android:strokeLineCap="round" />
-
+            android:strokeLineCap="round"/>
+        <!-- Resonance Curve -->
         <path
             android:pathData="M15,45 L30,45 C45,45 48,85 50,85 C52,85 53,55 85,55"
             android:strokeColor="#2196F3"
             android:strokeWidth="2"
-            android:strokeLineCap="round" />
+            android:strokeLineCap="round"/>
     </group>
 </vector>

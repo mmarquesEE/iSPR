@@ -13,6 +13,7 @@ import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
 import android.util.Log
+import android.util.Range
 import android.util.Size
 import android.view.Surface
 import com.example.ispr.logic.processing.ProcessingFrameProcessor
@@ -27,8 +28,13 @@ import kotlin.math.abs
  */
 data class CameraSettings(
     val isAuto: Boolean = true,
+    val aeMode: Int = CaptureRequest.CONTROL_AE_MODE_ON,
+    val afMode: Int = CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE,
     val iso: Int = 400,
-    val exposureTimeNs: Long = 10_000_000L // 10ms
+    val exposureTimeNs: Long = 10_000_000L, // 10ms
+    val focusDistance: Float = 0f,
+    val resolution: Size? = null,
+    val fpsRange: Range<Int>? = null
 )
 
 /**
@@ -44,7 +50,7 @@ data class CameraSettings(
  * - Manual control over ISO and exposure time via [CameraSettings].
  * - Lifecycle-aware management via [resume] and [pause] methods.
  */
-class CameraStreamManager(private val context: Context) {
+class CameraStreamManager(context: Context) {
     private val TAG = "CameraStreamManager"
     private val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private var cameraDevice: CameraDevice? = null
@@ -59,10 +65,15 @@ class CameraStreamManager(private val context: Context) {
      */
     private val cameraOpenCloseLock = Semaphore(1)
 
-    private var currentSettings = CameraSettings()
+    private val _settings = MutableStateFlow(CameraSettings())
+    val settings = _settings.asStateFlow()
+
     private var previewSurface: Surface? = null
     private var imageReader: ImageReader? = null
     private var frameProcessor: ProcessingFrameProcessor? = null
+
+    // Cache characteristics to avoid heavy hits to CameraManager during sanitization
+    private var cachedCharacteristics: CameraCharacteristics? = null
 
     /**
      * Flow emitting the currently active camera resolution.
@@ -88,7 +99,7 @@ class CameraStreamManager(private val context: Context) {
     fun resume() {
         if (backgroundThread != null) return
 
-        backgroundThread = HandlerThread("CameraBackground").also { it.start() }
+        backgroundThread = HandlerThread("CameraBackground", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY).also { it.start() }
         backgroundHandler = Handler(backgroundThread!!.looper)
 
         openCamera()
@@ -140,25 +151,42 @@ class CameraStreamManager(private val context: Context) {
                 }
 
                 val characteristics = cameraManager.getCameraCharacteristics(frontCameraId)
+                cachedCharacteristics = characteristics
                 val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
 
-                val outputSizes = map?.getOutputSizes(ImageFormat.PRIVATE) ?: emptyArray()
+                // Query sizes specifically for YUV processing format
+                val outputSizes = map?.getOutputSizes(ImageFormat.YUV_420_888) ?: emptyArray()
 
-                // Prefer 1080p or 720p with a 16:9 aspect ratio to match modern displays.
-                val bestSize = outputSizes.filter { it.width <= 1920 && it.height <= 1080 }
+                // Log available FPS ranges for debugging
+                val ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                Log.d(TAG, "Available FPS Ranges: ${ranges?.contentToString()}")
+
+                // Prefer setting resolution, otherwise fallback to 720p/480p logic
+                val bestSize = _settings.value.resolution ?: outputSizes.filter { it.width <= 1280 && it.height <= 720 }
                     .sortedByDescending { it.width * it.height }
                     .firstOrNull {
                         val ratio = it.width.toFloat() / it.height.toFloat()
                         abs(ratio - (16f / 9f)) < 0.1
-                    } ?: outputSizes.filter { it.width <= 1920 }.maxByOrNull { it.width * it.height }
-                ?: Size(1280, 720)
+                    } ?: Size(640, 480)
 
-                _activeResolution.value = bestSize
+                // Sync the settings state with the hardware-selected defaults *before* setting activeResolution
+                // This prevents "null vs value" mismatches that trigger unnecessary restarts.
+                val currentSettings = _settings.value
+                val availableFpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+                val defaultFps = availableFpsRanges?.maxByOrNull { it.upper }
+                
+                _settings.value = currentSettings.copy(
+                    resolution = currentSettings.resolution ?: bestSize,
+                    fpsRange = currentSettings.fpsRange ?: defaultFps
+                )
+                
+                // Now update activeResolution to match what we actually opened with
+                _activeResolution.value = _settings.value.resolution ?: bestSize
 
                 imageReader?.close()
 
                 imageReader = ImageReader.newInstance(
-                    bestSize.width, bestSize.height, ImageFormat.YUV_420_888, 2
+                    bestSize.width, bestSize.height, ImageFormat.YUV_420_888, 4
                 ).apply {
                     setOnImageAvailableListener({ reader ->
                         val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
@@ -257,14 +285,87 @@ class CameraStreamManager(private val context: Context) {
 
     /**
      * Updates the running camera stream with new hardware settings.
+     * Performs validation to ensure Resolution, FPS, and Exposure are physically compatible.
      *
-     * @param settings The new [CameraSettings] (ISO, Exposure, Auto-mode) to apply.
+     * @param settings The new [CameraSettings] to apply.
      */
-    fun updateSettings(settings: CameraSettings) {
-        currentSettings = settings
-        backgroundHandler?.post {
-            updateCaptureRequest()
+    fun updateSettings(newSettings: CameraSettings) {
+        val oldSettings = _settings.value
+        val sanitized = sanitizeSettings(newSettings)
+        
+        // Only update state if it actually changed to prevent unnecessary recompositions
+        if (sanitized != oldSettings) {
+            _settings.value = sanitized
+            
+            backgroundHandler?.post {
+                // Resolution change requires re-opening camera.
+                // We only restart if the resolution actually changed from the currently active one.
+                if (sanitized.resolution != _activeResolution.value && sanitized.resolution != null) {
+                    closeCamera()
+                    openCamera()
+                } else {
+                    updateCaptureRequest()
+                }
+            }
         }
+    }
+
+    /**
+     * Enforces hardware coupling rules and physical sensor limits:
+     * 1. If isAuto is true, force AE/AF to standard auto modes.
+     * 2. FPS range must be supported by the current resolution.
+     * 3. Exposure time cannot exceed the frame duration (1/FPS).
+     * 4. ISO and Exposure must stay within physical sensor limits.
+     */
+    private fun sanitizeSettings(s: CameraSettings): CameraSettings {
+        val characteristics = cachedCharacteristics ?: return s
+        val streamMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return s
+        val isoRange = characteristics.get(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+        val expRange = characteristics.get(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        val availableFpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+
+        var sanitized = s
+
+        // 1. Auto Mode Enforcement - Only force if isAuto is true
+        if (s.isAuto) {
+            sanitized = sanitized.copy(
+                aeMode = CaptureRequest.CONTROL_AE_MODE_ON,
+                afMode = CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+            )
+        }
+
+        // 2. Resolution -> FPS Coupling
+        val activeRes = sanitized.resolution ?: _activeResolution.value
+        val maxFpsForRes = activeRes?.let { res ->
+            val minFrameDuration = streamMap.getOutputMinFrameDuration(ImageFormat.YUV_420_888, res)
+            if (minFrameDuration > 0) (1_000_000_000L / minFrameDuration).toInt() else 60
+        } ?: 60
+
+        // Only override the FPS range if the current one is physically impossible for the resolution
+        var finalFps = sanitized.fpsRange ?: availableFpsRanges?.maxByOrNull { it.upper }
+        if (finalFps != null && finalFps.upper > maxFpsForRes) {
+            finalFps = availableFpsRanges
+                ?.filter { it.upper <= maxFpsForRes }
+                ?.maxByOrNull { it.upper }
+        }
+
+        // 3. FPS -> Exposure Coupling
+        val currentMaxFps = finalFps?.upper ?: 30
+        val maxExposureByFps = 1_000_000_000L / currentMaxFps
+        
+        // 4. Physical Range Clamping
+        val finalIso = isoRange?.let { sanitized.iso.coerceIn(it.lower, it.upper) } ?: sanitized.iso
+        // Ensure exposure doesn't exceed 1/FPS to prevent frame drops, but don't force a fallback if within limits
+        val finalExp = expRange?.let { 
+            sanitized.exposureTimeNs.coerceIn(it.lower, minOf(it.upper, maxExposureByFps)) 
+        } ?: sanitized.exposureTimeNs.coerceAtMost(maxExposureByFps)
+
+        return sanitized.copy(
+            iso = finalIso, 
+            exposureTimeNs = finalExp,
+            fpsRange = finalFps,
+            resolution = sanitized.resolution // Preserve null if it was null, or the user's selection
+        )
     }
 
     /**
@@ -274,15 +375,33 @@ class CameraStreamManager(private val context: Context) {
     private fun updateCaptureRequest() {
         val session = captureSession ?: return
         val builder = previewRequestBuilder ?: return
+        val currentSettings = _settings.value
 
         try {
+            // Use the settings range; it should have been sanitized already by updateSettings
+            currentSettings.fpsRange?.let { range ->
+                builder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, range)
+            }
+
+            // Disable stabilization to reduce processing overhead
+            builder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE, CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
+            builder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE, CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF)
+
             if (currentSettings.isAuto) {
                 builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                 builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
             } else {
-                builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
-                builder.set(CaptureRequest.SENSOR_SENSITIVITY, currentSettings.iso)
-                builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, currentSettings.exposureTimeNs)
+                builder.set(CaptureRequest.CONTROL_AE_MODE, currentSettings.aeMode)
+                builder.set(CaptureRequest.CONTROL_AF_MODE, currentSettings.afMode)
+                
+                if (currentSettings.aeMode == CaptureRequest.CONTROL_AE_MODE_OFF) {
+                    builder.set(CaptureRequest.SENSOR_SENSITIVITY, currentSettings.iso)
+                    builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, currentSettings.exposureTimeNs)
+                }
+                
+                if (currentSettings.afMode == CaptureRequest.CONTROL_AF_MODE_OFF) {
+                    builder.set(CaptureRequest.LENS_FOCUS_DISTANCE, currentSettings.focusDistance)
+                }
             }
 
             session.setRepeatingRequest(builder.build(), null, backgroundHandler)

@@ -38,8 +38,23 @@ class CameraHardwareInfo(
     val facing: String,
     val sensorOrientation: String,
     val autoExposureModes: List<String>,
-    val autoFocusModes: List<String>
+    val rawAeModes: List<Int>,
+    val autoFocusModes: List<String>,
+    val rawAfModes: List<Int>,
+    val minFocusDistance: Float?,
+    val supportedResolutions: List<android.util.Size>,
+    val supportedFpsRanges: List<android.util.Range<Int>>,
+    val resolutionMaxFps: Map<android.util.Size, Int>
 ) {
+    /**
+     * Returns the list of FPS ranges that are physically supported by the given resolution.
+     */
+    fun getSupportedFpsRangesFor(resolution: android.util.Size?): List<android.util.Range<Int>> {
+        if (resolution == null) return supportedFpsRanges
+        val maxFps = resolutionMaxFps[resolution] ?: 30
+        return supportedFpsRanges.filter { it.upper <= maxFps }
+    }
+
     /**
      * Converts the hardware information into a list of [InfoRowContent] for UI display.
      * 
@@ -56,7 +71,7 @@ class CameraHardwareInfo(
         
         return listOf(
             InfoRowContent("Facing", facing),
-                    InfoRowContent("Max Resolution", maxResolution),
+            InfoRowContent("Max Resolution", maxResolution),
             InfoRowContent("Sensor Size", sensorSize),
             InfoRowContent("Focal Lengths", focalLengths),
             InfoRowContent("Apertures", apertures),
