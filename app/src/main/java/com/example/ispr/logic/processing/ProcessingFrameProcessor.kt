@@ -20,7 +20,8 @@ data class ProcessingResult(
     val BCursorX: Int,
     val BCursorY: Float,
     val isTimeView: Boolean = false,
-    val timeLabels: LongArray? = null
+    val timeLabels: LongArray? = null,
+    val initialTimestampNs: Long = 0L
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -35,6 +36,7 @@ data class ProcessingResult(
         if (BCursorX != other.BCursorX) return false
         if (BCursorY != other.BCursorY) return false
         if (isTimeView != other.isTimeView) return false
+        if (initialTimestampNs != other.initialTimestampNs) return false
         if (!RChannelY.contentEquals(other.RChannelY)) return false
         if (!GChannelY.contentEquals(other.GChannelY)) return false
         if (!BChannelY.contentEquals(other.BChannelY)) return false
@@ -52,6 +54,7 @@ data class ProcessingResult(
         result = 31 * result + BCursorX
         result = 31 * result + BCursorY.hashCode()
         result = 31 * result + isTimeView.hashCode()
+        result = 31 * result + initialTimestampNs.hashCode()
         result = 31 * result + RChannelY.contentHashCode()
         result = 31 * result + GChannelY.contentHashCode()
         result = 31 * result + BChannelY.contentHashCode()
@@ -67,6 +70,8 @@ data class ProcessingResult(
  */
 class ProcessingFrameProcessor {
     private val TAG = "ProcessingFrameProcessor"
+
+    var onParametersChange: ((ProcessingParameters) -> Unit)? = null
 
     private val _result = MutableStateFlow<ProcessingResult?>(null)
     val result = _result.asStateFlow()
@@ -86,6 +91,7 @@ class ProcessingFrameProcessor {
     private val timeBufferB = mutableListOf<Float>()
     private val timeStamps = mutableListOf<Long>()
     private var lastRecordedTimestampNs: Long = 0
+    private var initialTimestampNs: Long = 0
 
     private val MAX_TIME_POINTS = 500
 
@@ -98,6 +104,7 @@ class ProcessingFrameProcessor {
             timeBufferG.clear()
             timeBufferB.clear()
             timeStamps.clear()
+            initialTimestampNs = 0
         }
         params = newParams
     }
@@ -216,6 +223,8 @@ class ProcessingFrameProcessor {
                 // Time-series mode: collect cursors over time with decimation
                 val minIntervalNs = (1_000_000_000L / params.sampleRate).toLong()
                 if (frameTimestamp - lastRecordedTimestampNs >= minIntervalNs) {
+                    if (timeStamps.isEmpty()) initialTimestampNs = frameTimestamp
+                    
                     timeBufferR.add(minValR)
                     timeBufferG.add(minValG)
                     timeBufferB.add(minValB)
@@ -227,6 +236,14 @@ class ProcessingFrameProcessor {
                         timeBufferG.removeAt(0)
                         timeBufferB.removeAt(0)
                         timeStamps.removeAt(0)
+                    }
+                }
+
+                // Roll-off detection: If viewing history that is no longer in buffer, force live mode
+                if (!params.isLive && timeStamps.isNotEmpty()) {
+                    val bufferStartTime = (timeStamps.first() - initialTimestampNs) / 1_000_000_000f
+                    if (params.maxTime < bufferStartTime) {
+                        onParametersChange?.invoke(params.copy(isLive = true))
                     }
                 }
 
@@ -242,7 +259,8 @@ class ProcessingFrameProcessor {
                     BCursorX = timeBufferB.size - 1,
                     BCursorY = minValB,
                     isTimeView = true,
-                    timeLabels = timeStamps.toLongArray()
+                    timeLabels = timeStamps.toLongArray(),
+                    initialTimestampNs = initialTimestampNs
                 )
             } else {
                 // Profile mode (default)

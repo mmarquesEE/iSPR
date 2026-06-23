@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ fun GraphTab(
     cameraSettings: com.example.ispr.logic.camera.CameraSettings? = null
 ) {
     var autoScale by remember { mutableStateOf(false) }
+    var capturedBounds by remember(params.isTimeView) { mutableStateOf(0f..30f) }
     val scrollState = rememberScrollState()
     val maxWidth = activeResolution?.width?.toFloat() ?: 1280f
 
@@ -147,7 +149,7 @@ fun GraphTab(
                             Text("Time View")
                             Switch(
                                 checked = params.isTimeView,
-                                onCheckedChange = { onParamsChange(params.copy(isTimeView = it)) }
+                                onCheckedChange = { onParamsChange(params.copy(isTimeView = it, sampleRate = maxFps)) }
                             )
                         }
                         if (params.isTimeView)
@@ -155,23 +157,80 @@ fun GraphTab(
                                 label = "Sample Rate (Hz)",
                                 value = params.sampleRate,
                                 onValueChange = { onParamsChange(params.copy(sampleRate = it)) },
-                                valueRange = 0.1f..maxFps,
+                                valueRange = 1f..maxFps,
                                 format = "%.1f"
                             )
                     }
                 }
         }
 
-        // ROI Column Range
+        val base = result?.initialTimestampNs ?: 0L
+        val totalAvailableTime = if (result?.timeLabels?.isNotEmpty() == true) (result.timeLabels.last() - base) / 1e9f else 30f
+        val bufferStartTime = if (result?.timeLabels?.isNotEmpty() == true) (result.timeLabels.first() - base) / 1e9f else 0f
+
+        if (params.isTimeView) {
+            // Update the visual placeholder only when transitioning to Live
+            androidx.compose.runtime.LaunchedEffect(params.isLive) {
+                if (params.isLive) {
+                    capturedBounds = bufferStartTime..totalAvailableTime
+                }
+            }
+        }
+
         LabeledRangeSlider(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .align(Alignment.CenterHorizontally),
             label = "",
-            modifier = Modifier.height(30.dp),
-            value = params.minCol.toFloat()..params.maxCol.toFloat(),
-            onValueChange = { range ->
-                onParamsChange(params.copy(minCol = range.start.toInt(), maxCol = range.endInclusive.toInt()))
+            value = if (params.isTimeView) {
+                if (params.isLive) capturedBounds else params.minTime..params.maxTime
+            } else {
+                params.minCol.toFloat()..params.maxCol.toFloat()
             },
-            valueRange = 0f..maxWidth,
-            format = "%.0f"
+            onValueChange = { range ->
+                if (params.isTimeView) {
+                    if (params.isLive) {
+                        // CAPTURE EVENT: Start of user interaction
+                        val now = bufferStartTime..totalAvailableTime
+                        capturedBounds = now
+                        
+                        // Map the interaction from the stale placeholder to the new captured range
+                        // (To ensure the handles don't jump if the buffer grew significantly)
+                        val startPct = (range.start - capturedBounds.start) / (capturedBounds.endInclusive - capturedBounds.start)
+                        val endPct = (range.endInclusive - capturedBounds.start) / (capturedBounds.endInclusive - capturedBounds.start)
+                        
+                        val mappedStart = now.start + startPct * (now.endInclusive - now.start)
+                        val mappedEnd = now.start + endPct * (now.endInclusive - now.start)
+
+                        onParamsChange(params.copy(
+                            isLive = false,
+                            minTime = mappedStart.coerceIn(now),
+                            maxTime = mappedEnd.coerceIn(now)
+                        ))
+                    } else {
+                        // NAVIGATION within fixed bounds
+                        // RELEASE EVENT: Handles returned to edges
+                        val atEdges = range.start <= capturedBounds.start + 0.1f && 
+                                      range.endInclusive >= capturedBounds.endInclusive - 0.1f
+                        
+                        if (atEdges) {
+                            onParamsChange(params.copy(isLive = true))
+                        } else {
+                            onParamsChange(params.copy(
+                                minTime = range.start,
+                                maxTime = range.endInclusive
+                            ))
+                        }
+                    }
+                } else {
+                    onParamsChange(params.copy(
+                        minCol = range.start.toInt(),
+                        maxCol = range.endInclusive.toInt()
+                    ))
+                }
+            },
+            valueRange = if (params.isTimeView) capturedBounds else 0f..maxWidth,
+            format = if (params.isTimeView) "%.1fs" else "%.0f",
         )
 
         Spacer(modifier = Modifier.height(20.dp))

@@ -48,6 +48,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         // Connect the processor to the camera stream
         cameraManager.setFrameProcessor(frameProcessor)
+        
+        // Handle parameter updates requested by the processor (e.g. roll-off detection)
+        frameProcessor.onParametersChange = { updateProcessingParameters(it) }
+
         // Attempt to resume camera immediately if permission is already granted
         resumeCameraIfPossible()
         
