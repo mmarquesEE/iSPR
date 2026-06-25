@@ -1,5 +1,6 @@
 package com.example.ispr.ui.components.tabs
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,7 +19,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -28,9 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ispr.logic.processing.ProcessingParameters
 import com.example.ispr.logic.processing.ProcessingResult
-import com.example.ispr.ui.graphs.Graph
 import com.example.ispr.ui.widgets.ColorCheckbox
-import com.example.ispr.ui.widgets.LabeledRangeSlider
 import com.example.ispr.ui.widgets.LabeledSlider
 
 @Composable
@@ -41,6 +39,9 @@ fun GraphTab(
     activeResolution: android.util.Size? = null,
     cameraSettings: com.example.ispr.logic.camera.CameraSettings? = null
 ) {
+    var isRedEnabled by remember { mutableStateOf(true) }
+    var isGreenEnabled by remember { mutableStateOf(true) }
+    var isBlueEnabled by remember { mutableStateOf(true) }
 
     var autoScale by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -63,18 +64,18 @@ fun GraphTab(
             ){
                 ColorCheckbox(
                     color = Color(0xFFFF0000),
-                    checked = params.isRedEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isRedEnabled = it)) }
+                    checked = isRedEnabled,
+                    onCheckedChange = { isRedEnabled = it }
                 )
                 ColorCheckbox(
                     color = Color(0xFF00FF00),
-                    checked = params.isGreenEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isGreenEnabled = it)) }
+                    checked = isGreenEnabled,
+                    onCheckedChange = { isGreenEnabled = it }
                 )
                 ColorCheckbox(
                     color = Color(0xFF0000FF),
-                    checked = params.isBlueEnabled,
-                    onCheckedChange = { onParamsChange(params.copy(isBlueEnabled = it)) }
+                    checked = isBlueEnabled,
+                    onCheckedChange = { isBlueEnabled = it }
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -99,7 +100,7 @@ fun GraphTab(
                 .fillMaxWidth()
                 .height(200.dp)
         ){
-            Graph(
+            /*Graph(
                 result = result,
                 params = params,
                 autoScale = autoScale,
@@ -108,7 +109,7 @@ fun GraphTab(
                     .clickable(
                         onClick = { showGraphOverlay.value = true }
                     )
-            )
+            )*/
             if (showGraphOverlay.value)
                 Box(
                     modifier = Modifier
@@ -161,7 +162,7 @@ fun GraphTab(
                 }
         }
 
-        var rangeSliderVal by remember { mutableStateOf(0f..1f) }
+        /*var rangeSliderVal by remember { mutableStateOf(0f..1f) }
         var minTime by remember { mutableFloatStateOf(0f) }
         var maxTime by remember { mutableFloatStateOf(0f) }
 
@@ -187,6 +188,7 @@ fun GraphTab(
                     if (params.isLive) {
                         minTime = result.initialTimestampS
                         maxTime = result.timeLabels.max()
+                        Log.d("Uepaa", String.format("%.1f, %.1f", minTime, maxTime))
                         onParamsChange(
                             params.copy(
                                 isLive = false,
@@ -207,7 +209,7 @@ fun GraphTab(
                         ))
                 }
             }
-        )
+        )*/
 
         Spacer(modifier = Modifier.height(20.dp))
 
@@ -234,7 +236,10 @@ fun GraphTab(
         // Summary info
         if (result != null) {
             Text(
-                text = "Min Indices: R:${result.rCursorX} G:${result.gCursorX} B:${result.bCursorX}",
+                text = "Min Indices: " +
+                        "R:${result.rChannelData.minCursor.first} " +
+                        "G:${result.gChannelData.minCursor.first} " +
+                        "B:${result.bChannelData.minCursor.first}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

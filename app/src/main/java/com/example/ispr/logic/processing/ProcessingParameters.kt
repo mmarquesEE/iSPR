@@ -13,9 +13,6 @@ package com.example.ispr.logic.processing
  * @property isRatiometric If true, signals are divided by a reference frame for relative measurements.
  * @property isTimeView If true, the graph displays a time-series of minimums rather than a spatial profile.
  * @property sampleRate Frequency (Hz) at which samples are recorded in Time View mode.
- * @property isRedEnabled Whether the Red channel signal is processed and displayed.
- * @property isGreenEnabled Whether the Green channel signal is processed and displayed.
- * @property isBlueEnabled Whether the Blue channel signal is processed and displayed.
  * @property isLive In Time View, controls whether the graph follows the latest incoming samples (true)
  *                 or displays a fixed historical window (false).
  * @property minTime The start time (in seconds relative to session start) of the visible window in History mode.
@@ -29,9 +26,6 @@ data class ProcessingParameters(
     val isRatiometric: Boolean = false,
     val isTimeView: Boolean = false,
     val sampleRate: Float = 10f,
-    val isRedEnabled: Boolean = true,
-    val isGreenEnabled: Boolean = true,
-    val isBlueEnabled: Boolean = true,
     val isLive: Boolean = true,
     val minTime: Float = 0f,
     val maxTime: Float = 0f

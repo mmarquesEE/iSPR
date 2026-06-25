@@ -26,7 +26,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Processor for real-time image analysis.
      */
-    private val frameProcessor = com.example.ispr.logic.processing.ProcessingFrameProcessor()
+    private val frameProcessor =
+        com.example.ispr.logic.processing.ProcessingFrameProcessor()
 
     /**
      * Exposes the processing results to the UI.
@@ -36,13 +37,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * State for processing parameters, updated via sliders.
      */
-    var processingParameters by mutableStateOf(com.example.ispr.logic.processing.ProcessingParameters())
+    var processingParameters by mutableStateOf(
+        com.example.ispr.logic.processing.ProcessingParameters())
         private set
 
     /**
      * State for the Source Configuration (Screen Probe).
      */
-    var screenSourceConfiguration by mutableStateOf(com.example.ispr.logic.screen.ScreenSourceConfiguration())
+    var screenSourceConfiguration by mutableStateOf(
+        com.example.ispr.logic.screen.ScreenSourceConfiguration())
         private set
 
     init {

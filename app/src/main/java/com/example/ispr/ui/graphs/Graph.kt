@@ -1,223 +1,137 @@
 package com.example.ispr.ui.graphs
 
+
 import androidx.compose.foundation.Canvas
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ispr.logic.processing.ProcessingParameters
-import com.example.ispr.logic.processing.ProcessingResult
+import com.example.ispr.logic.processing.ChannelData
 import java.util.Locale
 
 @Composable
 fun Graph(
-    result: ProcessingResult?,
+    xData: LongArray,
+    vararg yData: ChannelData,
     modifier: Modifier = Modifier,
-    params: ProcessingParameters,
-    autoScale: Boolean = false,
-) {
-    val textMeasurer = rememberTextMeasurer()
-    val labelStyle = MaterialTheme.typography.labelSmall.copy(
-        fontSize = 10.sp,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+    enabledChannels: List<Boolean> = listOf(true ,true, true),
+    drawMinCursors: Boolean = false,
+    normalizeYData: Boolean = false,
+    isXDataTimestamp: Boolean = false,
+    colors: List<Color> = listOf(
+        Color(0xFFFF0000),
+        Color(0xFF00FF00),
+        Color(0xFF0000FF)
     )
-    val axisColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)
+
+) {
+    val axisColor = MaterialTheme.colorScheme.onBackground
+    val textMeasurer = rememberTextMeasurer()
+    val textStyle = MaterialTheme.typography.labelSmall.copy(
+        fontSize = 10.sp,
+        color = axisColor
+    )
+
+    val minX = xData.first().toFloat()
+    val maxX = xData.last().toFloat()
+    val xScale = maxX - minX
+
+    val minY = yData.minOf { it.minCursor.second }.toFloat()
+    val maxY = yData.maxOf { it.maxCursor.second }.toFloat()
+    val yScale = maxY - minY
 
     Canvas(modifier = modifier) {
-        val marginL = 5.dp.toPx()
-        val marginB = 20.dp.toPx()
-        val graphW = size.width - marginL
-        val graphH = size.height - marginB
-
-        // Draw background grid/axes
-        // Y-Axis
+        // X axis
         drawLine(
-            axisColor,
-            start = androidx.compose.ui.geometry.Offset(marginL, 0f),
-            end = androidx.compose.ui.geometry.Offset(marginL, graphH),
-            strokeWidth = 1.dp.toPx()
-        )
-        // X-Axis
+            color = axisColor,
+            start = Offset(x = 0f, 0f), end = Offset(x = size.width, 0f))
+
+        // Y axis
         drawLine(
-            axisColor,
-            start = androidx.compose.ui.geometry.Offset(marginL, graphH),
-            end = androidx.compose.ui.geometry.Offset(size.width, graphH),
-            strokeWidth = 1.dp.toPx()
-        )
+            color = axisColor,
+            start = Offset(x = 0f, y = 0f), end = Offset(x = 0f, y = size.height))
 
-        if (result != null) {
-            val xTicks = listOf(0f, 0.5f, 1f)
+        // Tick drawing
+        floatArrayOf(0f, 0.5f, 1f).forEach {
+            val xTick = (it * xScale + minX) / (if (isXDataTimestamp) 1000000000f else 1f)
+            val yTick = ((1f - it) * yScale + minY) / (if (normalizeYData) 1f * maxY else 1f)
 
-            val filteredR: FloatArray
-            val filteredG: FloatArray
-            val filteredB: FloatArray
-            val displayFirstTs: Float
-            val displayLastTs: Float
+            val xTickText = String.format(
+                Locale.US, format = if (isXDataTimestamp) "%.1fs" else "%.0f", xTick)
 
-            if (params.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
-                val baseTs = result.initialTimestampS
-                
-                if (params.isLive) {
-                    filteredR = result.rChannelY
-                    filteredG = result.gChannelY
-                    filteredB = result.bChannelY
-                    displayFirstTs = result.timeLabels.first()
-                    displayLastTs = result.timeLabels.last()
-                } else {
-                    val startTimeS = baseTs + params.minTime
-                    val endTimeS = baseTs + params.maxTime
+            val yTickText = String.format(
+                Locale.US, format = if (normalizeYData) "%.1f" else "%.0f", yTick)
 
-                    val indices = result.timeLabels.indices.filter {
-                        result.timeLabels[it] in startTimeS..endTimeS
-                    }
+            val textSizeX = textMeasurer.measure(xTickText, textStyle).size.width
+            val textSizeY = textMeasurer.measure(yTickText, textStyle).size.height
 
-                    if (indices.isNotEmpty()) {
-                        filteredR = indices.map { result.rChannelY[it] }.toFloatArray()
-                        filteredG = indices.map { result.gChannelY[it] }.toFloatArray()
-                        filteredB = indices.map { result.bChannelY[it] }.toFloatArray()
-                        displayFirstTs = result.timeLabels[indices.first()]
-                        displayLastTs = result.timeLabels[indices.last()]
-                    } else {
-                        filteredR = floatArrayOf()
-                        filteredG = floatArrayOf()
-                        filteredB = floatArrayOf()
-                        displayFirstTs = startTimeS
-                        displayLastTs = endTimeS
-                    }
-                }
-            } else {
-                filteredR = result.rChannelY
-                filteredG = result.gChannelY
-                filteredB = result.bChannelY
-                displayFirstTs = 0f
-                displayLastTs = 0f
-            }
+            // X ticks
+            drawLine(
+                color = axisColor,
+                start = Offset(x = it * size.width, y = size.height),
+                end = Offset(x = it * size.width, y = size.height + 5.dp.toPx())
+            )
+            drawText(
+                textMeasurer = textMeasurer,
+                text = xTickText,
+                topLeft = Offset(
+                    x = it * (size.width - textSizeX), y = size.height - 7.dp.toPx())
+            )
 
-            val minY: Float
-            val maxY: Float
+            // Y ticks
+            drawLine(
+                color = axisColor,
+                start = Offset(x = 0f, y = it * size.height),
+                end = Offset(x = 5.dp.toPx(), y = it * size.height)
+            )
+            drawText(
+                textMeasurer = textMeasurer,
+                text = yTickText,
+                topLeft = Offset(x = 7.dp.toPx(), y = it * (size.height - textSizeY))
+            )
+        }
 
-            if (autoScale || params.isTimeView) {
-                val rMin = if (params.isRedEnabled && filteredR.isNotEmpty()) filteredR.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
-                val gMin = if (params.isGreenEnabled && filteredG.isNotEmpty()) filteredG.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
-                val bMin = if (params.isBlueEnabled && filteredB.isNotEmpty()) filteredB.minOrNull() ?: Float.MAX_VALUE else Float.MAX_VALUE
-                
-                val rMax = if (params.isRedEnabled && filteredR.isNotEmpty()) filteredR.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
-                val gMax = if (params.isGreenEnabled && filteredG.isNotEmpty()) filteredG.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
-                val bMax = if (params.isBlueEnabled && filteredB.isNotEmpty()) filteredB.maxOrNull() ?: Float.MIN_VALUE else Float.MIN_VALUE
-
-                minY = minOf(rMin, gMin, bMin).let { if (it == Float.MAX_VALUE) 0f else it }
-                maxY = maxOf(rMax, gMax, bMax).let { if (it == Float.MIN_VALUE) 1f else it }
-            } else {
-                minY = 0f
-                maxY = 1f
-            }
-
-            val rangeY = (maxY - minY).let { if (it <= 0) 1f else it }
-            val yTicks = listOf(minY, minY + rangeY * 0.5f, maxY)
-
-            xTicks.forEachIndexed { index, tick ->
-                val x = marginL + (tick * graphW)
-                
-                val label = if (params.isTimeView && result.timeLabels != null && result.timeLabels.isNotEmpty()) {
-                    val baseTs = result.initialTimestampS
-                    val currentTs = displayFirstTs + (tick * (displayLastTs - displayFirstTs))
-                    String.format(Locale.US, "%.1fs", (currentTs - baseTs))
-                } else {
-                    val colIdx = result.x.first + (tick * (result.x.last - result.x.first)).toInt()
-                    colIdx.toString()
-                }
-                
-                val textXOffset = if (index == 0) 5.dp.toPx() else if (index == 2) -35.dp.toPx() else -15.dp.toPx()
-
-                drawLine(
-                    axisColor,
-                    start = androidx.compose.ui.geometry.Offset(x, graphH),
-                    end = androidx.compose.ui.geometry.Offset(x, graphH - 5.dp.toPx()),
-                    strokeWidth = 1.dp.toPx()
+        yData.forEachIndexed { index, channelData ->
+            if (enabledChannels[index]) {
+                val arrSize = xData.size
+                val path = Path()
+                path.moveTo(
+                    x = 0f,
+                    y = size.height * (
+                            ( maxY - channelData.chartData.first() ) / yScale )
                 )
-                if (index > 0)
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = label,
-                        style = labelStyle,
-                        topLeft = androidx.compose.ui.geometry.Offset(x + textXOffset, graphH - 20.dp.toPx())
-                    )
-            }
-
-            yTicks.forEach { tick ->
-                val normalizedTick = (tick - minY) / rangeY
-                val y = graphH - (normalizedTick * graphH)
-                val textYOffset = if (tick == minY) -15.dp.toPx() else if (tick == maxY) 0.dp.toPx() else -7.dp.toPx()
-
-                drawLine(axisColor,
-                    start = androidx.compose.ui.geometry.Offset(marginL, y),
-                    end = androidx.compose.ui.geometry.Offset(marginL + 4.dp.toPx(), y),
-                    strokeWidth = 1.dp.toPx()
-                )
-                drawText(
-                    textMeasurer = textMeasurer,
-                    text = String.format(Locale.US, "%.2f", tick),
-                    style = labelStyle,
-                    topLeft = androidx.compose.ui.geometry.Offset(marginL + 7.dp.toPx(), y + textYOffset)
-                )
-            }
-
-            // Draw Data Vectors
-            if (params.isRedEnabled) {
-                drawVector(
-                    filteredR, Color.Red,
-                    width=graphW,
-                    height = graphH,
-                    offsetX = marginL,
-                    minY, rangeY
-                )
-                if (!params.isTimeView) {
-                    drawMinMarkers(
-                        result.rCursorX, result.rCursorY, Color.Red,
-                        vectorSize = result.rChannelY.size,
-                        width = graphW,
-                        height = graphH,
-                        offsetX = marginL,
-                        minY, rangeY
+                for (i in 1 until arrSize) {
+                    path.lineTo(
+                        x = size.width * ((xData[i] - minX) / xScale),
+                        y = size.height * (
+                                ( maxY - channelData.chartData[i] ) / yScale )
                     )
                 }
-            }
-            if (params.isGreenEnabled) {
-                drawVector(
-                    filteredG, Color.Green,
-                    width = graphW,
-                    height = graphH,
-                    offsetX = marginL, minY, rangeY
-                )
-                if (!params.isTimeView) {
-                    drawMinMarkers(
-                        result.gCursorX, result.gCursorY, Color.Green,
-                        vectorSize = result.gChannelY.size,
-                        width = graphW, graphH,
-                        offsetX = marginL, minY, rangeY
+                drawPath(path = path, color = colors[index], style = Stroke(width = 2.dp.toPx()))
+
+                if(drawMinCursors){
+                    val xConst = size.width * (channelData.minCursor.first / (arrSize - 1) )
+                    val yConst = size.height * (
+                            ( maxY - channelData.minCursor.second ) / yScale )
+
+                    drawLine(
+                        color = colors[index],
+                        start = Offset(x = 0f,y = yConst), end = Offset(x = size.width, y = yConst),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            intervals = floatArrayOf(10f, 10f))
                     )
-                }
-            }
-            if (params.isBlueEnabled) {
-                drawVector(
-                    filteredB, Color.Blue,
-                    width = graphW,
-                    height = graphH,
-                    offsetX = marginL,
-                    minY, rangeY
-                )
-                if (!params.isTimeView) {
-                    drawMinMarkers(
-                        result.bCursorX, result.bCursorY, Color.Blue,
-                        vectorSize = result.bChannelY.size,
-                        width = graphW,
-                        height = graphH,
-                        offsetX = marginL,
-                        minY, rangeY
+                    drawLine(
+                        color = colors[index],
+                        start = Offset(x = xConst, y = 0f), end = Offset(x = xConst, y = size.height),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            intervals = floatArrayOf(10f, 10f))
                     )
                 }
             }

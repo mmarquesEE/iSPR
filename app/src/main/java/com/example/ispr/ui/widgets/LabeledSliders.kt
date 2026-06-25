@@ -21,14 +21,14 @@ import java.util.Locale
  */
 @Composable
 fun LabeledSlider(
-    label: String,
     value: Float,
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
+    label: String = "",
+    format: String = "",
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0,
-    format: String = "%.2f"
+    steps: Int = 0
 ) {
     val alpha = if (enabled) 1f else 0.38f
 
@@ -57,7 +57,7 @@ fun LabeledSlider(
                 inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
             )
         )
-        if (label.isNotEmpty())
+        if (format.isNotEmpty())
             Text(
                 text = String.format(Locale.US, format, value),
                 style = MaterialTheme.typography.bodySmall,
@@ -72,36 +72,41 @@ fun LabeledSlider(
  */
 @Composable
 fun LabeledRangeSlider(
-    label: String,
     value: ClosedFloatingPointRange<Float>,
     onValueChange: (ClosedFloatingPointRange<Float>) -> Unit,
     modifier: Modifier = Modifier,
+    label: String = "",
+    format: String = "",
     enabled: Boolean = true,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0,
-    format: String = "%.2f"
+    steps: Int = 0
 ) {
     val alpha = if (enabled) 1f else 0.38f
 
     Column(modifier = modifier) {
-        if (label.isNotEmpty())
+        if (label.isNotEmpty() || format.isNotEmpty())
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
-                )
-                val startText = String.format(Locale.US, format, value.start)
-                val endText = String.format(Locale.US, format, value.endInclusive)
-                Text(
-                    text = "$startText - $endText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha)
-                )
+                if(label.isNotEmpty())
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
+                    )
+
+                if(format.isNotEmpty()) {
+                    val startText = String.format(Locale.US, format, value.start)
+                    val endText = String.format(Locale.US, format, value.endInclusive)
+
+                    Text(
+                        text = "$startText - $endText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha)
+                    )
+                }
             }
         RangeSlider(
             value = value,
