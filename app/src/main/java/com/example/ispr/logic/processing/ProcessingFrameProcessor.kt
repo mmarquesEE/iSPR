@@ -247,14 +247,10 @@ class ProcessingFrameProcessor {
 					frozenTimeBufferB.isEmpty() &&
 					frozenTimeStampsNs.isEmpty()
 				) {
-					frozenTimeBufferR.addAll(liveTimeBufferR
-						.slice(params.minTimeIdx..params.maxTimeIdx))
-					frozenTimeBufferG.addAll(liveTimeBufferG
-						.slice(params.minTimeIdx..params.maxTimeIdx))
-					frozenTimeBufferB.addAll(liveTimeBufferB
-						.slice(params.minTimeIdx..params.maxTimeIdx))
-					frozenTimeStampsNs.addAll(liveTimeStampsNs
-						.slice(params.minTimeIdx..params.maxTimeIdx))
+					frozenTimeBufferR.addAll(liveTimeBufferR)
+					frozenTimeBufferG.addAll(liveTimeBufferG)
+					frozenTimeBufferB.addAll(liveTimeBufferB)
+					frozenTimeStampsNs.addAll(liveTimeStampsNs)
 				}
 				
 				if (params.isLive) {
@@ -266,10 +262,20 @@ class ProcessingFrameProcessor {
 					)
 				} else {
 					_result.value = ProcessingResult(
-						rChannelData = ChannelData(chartData = frozenTimeBufferR.toIntArray()),
-						gChannelData = ChannelData(chartData = frozenTimeBufferG.toIntArray()),
-						bChannelData = ChannelData(chartData = frozenTimeBufferB.toIntArray()),
-						timeStamps = frozenTimeStampsNs.toLongArray(),
+						rChannelData = ChannelData(
+							chartData = frozenTimeBufferR
+								.slice(params.minTimeIdx..params.maxTimeIdx).toIntArray()
+						),
+						gChannelData = ChannelData(
+							chartData = frozenTimeBufferG
+								.slice(params.minTimeIdx..params.maxTimeIdx).toIntArray()
+						),
+						bChannelData = ChannelData(
+							chartData = frozenTimeBufferB
+								.slice(params.minTimeIdx..params.maxTimeIdx).toIntArray()
+						),
+						timeStamps = frozenTimeStampsNs
+							.slice(params.minTimeIdx..params.maxTimeIdx).toLongArray(),
 					)
 				}
 			} else {
