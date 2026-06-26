@@ -24,8 +24,8 @@ data class ChannelData(
 	}
 	
 	override fun hashCode(): Int {
-		var result = minIndex ?: 0
-		result = 31 * result + (maxIndex ?: 0)
+		var result = minIndex
+		result = 31 * result + maxIndex
 		result = 31 * result + chartData.contentHashCode()
 		return result
 	}
