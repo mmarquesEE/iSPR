@@ -97,7 +97,8 @@ fun GraphTab(
 		val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
 		val showGraphOverlay = remember { mutableStateOf(false) }
 		
-		val graphXRelIdx = remember { mutableStateOf(0f..1f) }
+		val timeIdxSel = remember { mutableStateOf(0f..1f) }
+		val colRangeSel = remember { mutableStateOf(0f..1f) }
 		
 		Box(
 			modifier = Modifier
@@ -174,7 +175,7 @@ fun GraphTab(
 		}
 		
 		LabeledRangeSlider(
-			value = graphXRelIdx.value,
+			value = if (params.isTimeView) timeIdxSel.value else colRangeSel.value,
 			onValueChange = {
 				if (!params.isTimeView) {
 					val nCols = params.maxCol - params.minCol
@@ -184,7 +185,7 @@ fun GraphTab(
 							maxCol = (it.endInclusive * (activeResolution?.width ?: nCols)).toInt()
 						)
 					)
-					graphXRelIdx.value = it
+					colRangeSel.value = it
 				} else {
 					if (!params.isLive) {
 						if (it.start < 0.05f || it.endInclusive > 0.95f) {
@@ -195,7 +196,7 @@ fun GraphTab(
 									maxTimeIdx = params.maxTimeBufferSize - 1
 								)
 							)
-							graphXRelIdx.value = 0f..1f
+							timeIdxSel.value = 0f..1f
 						} else {
 							onParamsChange(
 								params.copy(
@@ -203,7 +204,7 @@ fun GraphTab(
 									maxTimeIdx = (it.endInclusive * (params.maxTimeBufferSize - 1)).toInt()
 								)
 							)
-							graphXRelIdx.value = it
+							timeIdxSel.value = it
 						}
 					} else {
 						onParamsChange(
@@ -213,7 +214,7 @@ fun GraphTab(
 								maxTimeIdx = (0.9f * (params.maxTimeBufferSize - 1)).toInt()
 							)
 						)
-						graphXRelIdx.value = 0.1f..0.9f
+						timeIdxSel.value = 0.1f..0.9f
 					}
 				}
 				
