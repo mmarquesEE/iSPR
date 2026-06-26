@@ -97,22 +97,24 @@ fun GraphTab(
 		val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
 		val showGraphOverlay = remember { mutableStateOf(false) }
 		
-		val xGraphAxisLimits = remember { mutableStateOf(0f..1f) }
+		val graphXRelIdx = remember { mutableStateOf(0f..1f) }
 		
 		Box(
 			modifier = Modifier
 				.fillMaxWidth()
 				.height(200.dp)
 		) {
-			if (result != null)
+			if (result != null) {
 				Graph(
-					result.rChannelData, result.gChannelData, result.bChannelData,
+					result.rChannelData,
+					result.gChannelData,
+					result.bChannelData,
 					colRange = Pair(params.minCol, params.maxCol),
 					enabledChannels = listOf(isRedEnabled, isGreenEnabled, isBlueEnabled),
 					timeData = result.timeStamps,
 					modifier = Modifier.fillMaxSize()
 				)
-			
+			}
 			if (showGraphOverlay.value)
 				Box(
 					modifier = Modifier
@@ -172,8 +174,50 @@ fun GraphTab(
 		}
 		
 		LabeledRangeSlider(
-			value = xGraphAxisLimits.value,
-			onValueChange = { xGraphAxisLimits.value = it }
+			value = graphXRelIdx.value,
+			onValueChange = {
+				if (!params.isTimeView) {
+					val nCols = params.maxCol - params.minCol
+					onParamsChange(
+						params.copy(
+							minCol = (it.start * (activeResolution?.width ?: nCols)).toInt(),
+							maxCol = (it.endInclusive * (activeResolution?.width ?: nCols)).toInt()
+						)
+					)
+					graphXRelIdx.value = it
+				} else {
+					if (!params.isLive) {
+						if (it.start < 0.05f || it.endInclusive > 0.95f) {
+							onParamsChange(
+								params.copy(
+									isLive = true,
+									minTimeIdx = 0,
+									maxTimeIdx = params.maxTimeBufferSize - 1
+								)
+							)
+							graphXRelIdx.value = 0f..1f
+						} else {
+							onParamsChange(
+								params.copy(
+									minTimeIdx = (it.start * (params.maxTimeBufferSize - 1)).toInt(),
+									maxTimeIdx = (it.endInclusive * (params.maxTimeBufferSize - 1)).toInt()
+								)
+							)
+							graphXRelIdx.value = it
+						}
+					} else {
+						onParamsChange(
+							params.copy(
+								isLive = false,
+								minTimeIdx = (0.1f * (params.maxTimeBufferSize - 1)).toInt(),
+								maxTimeIdx = (0.9f * (params.maxTimeBufferSize - 1)).toInt()
+							)
+						)
+						graphXRelIdx.value = 0.1f..0.9f
+					}
+				}
+				
+			},
 		)
 		
 		Spacer(modifier = Modifier.height(20.dp))

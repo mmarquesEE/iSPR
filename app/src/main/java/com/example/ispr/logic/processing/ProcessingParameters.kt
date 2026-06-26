@@ -15,6 +15,9 @@ package com.example.ispr.logic.processing
  * @property sampleRate Frequency (Hz) at which samples are recorded in Time View mode.
  * @property isLive In Time View, controls whether the graph follows the latest incoming samples (true)
  *                 or displays a fixed historical window (false).
+ * @property maxTimeBufferSize The maximum number of samples to buffer in Time View mode.
+ * @property minTimeIdx The starting index for the manual time window selection.
+ * @property maxTimeIdx The ending index for the manual time window selection.
  */
 data class ProcessingParameters(
 	val minCol: Int = 400,
@@ -25,4 +28,8 @@ data class ProcessingParameters(
 	val isTimeView: Boolean = false,
 	val sampleRate: Float = 10f,
 	val isLive: Boolean = true,
+	val maxTimeBufferSize: Int = 500,
+	
+	val minTimeIdx: Int = 0,
+	val maxTimeIdx: Int = maxTimeBufferSize - 1
 )

@@ -103,7 +103,6 @@ class ProcessingFrameProcessor {
 	private var lastRecordedTimestampNs: Long = 0L
 	private var initialTimestampNs: Long = 0L
 	
-	private val matTimePoints = 500
 	
 	fun updateParameters(newParams: ProcessingParameters) {
 		if (newParams.isTimeView != params.isTimeView) {
@@ -112,6 +111,12 @@ class ProcessingFrameProcessor {
 			liveTimeBufferB.clear()
 			liveTimeStampsNs.clear()
 			initialTimestampNs = 0L
+		}
+		if (newParams.isLive != params.isLive) {
+			frozenTimeBufferR.clear()
+			frozenTimeBufferG.clear()
+			frozenTimeBufferB.clear()
+			frozenTimeStampsNs.clear()
 		}
 		params = newParams
 	}
@@ -226,7 +231,7 @@ class ProcessingFrameProcessor {
 					liveTimeStampsNs.add(frameTimestampNs)
 					lastRecordedTimestampNs = frameTimestampNs
 					
-					if (liveTimeBufferR.size > matTimePoints) {
+					if (liveTimeBufferR.size > params.maxTimeBufferSize) {
 						liveTimeBufferR.removeAt(0)
 						liveTimeBufferG.removeAt(0)
 						liveTimeBufferB.removeAt(0)
@@ -242,10 +247,14 @@ class ProcessingFrameProcessor {
 					frozenTimeBufferB.isEmpty() &&
 					frozenTimeStampsNs.isEmpty()
 				) {
-					frozenTimeBufferR.addAll(liveTimeBufferR)
-					frozenTimeBufferG.addAll(liveTimeBufferG)
-					frozenTimeBufferB.addAll(liveTimeBufferB)
-					frozenTimeStampsNs.addAll(liveTimeStampsNs)
+					frozenTimeBufferR.addAll(liveTimeBufferR
+						.slice(params.minTimeIdx..params.maxTimeIdx))
+					frozenTimeBufferG.addAll(liveTimeBufferG
+						.slice(params.minTimeIdx..params.maxTimeIdx))
+					frozenTimeBufferB.addAll(liveTimeBufferB
+						.slice(params.minTimeIdx..params.maxTimeIdx))
+					frozenTimeStampsNs.addAll(liveTimeStampsNs
+						.slice(params.minTimeIdx..params.maxTimeIdx))
 				}
 				
 				if (params.isLive) {
