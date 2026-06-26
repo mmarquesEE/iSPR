@@ -19,15 +19,6 @@ import com.example.ispr.logic.processing.ChannelData
 import com.example.ispr.ui.theme.ISPRTheme
 import java.util.Locale
 
-/**
- * Graph.kt
- * This component performs the sensing data plotting using a Canvas.
- * It supports two main types of visualizations:
- * 1. **SPR Curve**: Displays the intensity across a range of pixels. Index filtering is
- *    typically not required here as ROI selection is handled by the logic layer.
- * 2. **Time Series**: Tracks resonance parameters (like minimum position) over time.
- *    In this mode, [timeIndexRange] can be used to filter the displayed time window.
- */
 
 /**
  * A customizable Graph component for displaying SPR-related data.
@@ -40,7 +31,6 @@ import java.util.Locale
  * @param enabledChannels A list of booleans indicating which channels should be rendered.
  * @param colors A list of [Color]s to use for each respective channel's plot.
  */
-
 @Composable
 fun Graph(
 	vararg yData: ChannelData,
@@ -156,9 +146,9 @@ fun Graph(
 				for (i in 1 until arrSize) {
 					path.lineTo(
 						x = size.width * (
-                            if(isTimeSeries) (timeData[i] - minX) / xScale.toFloat()
-                            else i / (arrSize - 1).toFloat()
-                        ),
+								if (isTimeSeries) (timeData[i] - minX) / xScale.toFloat()
+								else i / (arrSize - 1).toFloat()
+								),
 						y = size.height * (
 								(maxY - channelData.chartData[i]) / yScale.toFloat())
 					)
@@ -196,7 +186,7 @@ fun GraphPreview() {
 	ISPRTheme {
 		Graph(
 			yData = arrayOf(mockChannel),
-            colRange = Pair(20, 60),
+			colRange = Pair(20, 60),
 			modifier = Modifier.padding(16.dp),
 		)
 	}

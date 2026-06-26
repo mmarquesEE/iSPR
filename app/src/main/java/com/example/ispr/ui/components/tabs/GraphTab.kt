@@ -95,10 +95,10 @@ fun GraphTab(
 		Spacer(modifier = Modifier.height(16.dp))
 		
 		val maxFps = cameraSettings?.fpsRange?.upper?.toFloat() ?: 60f
-		val showGraphOverlay = remember { mutableStateOf(false) }
+		var showGraphOverlay by remember { mutableStateOf(false) }
 		
-		val timeIdxSel = remember { mutableStateOf(0f..1f) }
-		val colRangeSel = remember { mutableStateOf(0f..1f) }
+		var timeIdxSel by remember { mutableStateOf(0f..1f) }
+		var colRangeSel by remember { mutableStateOf(0f..1f) }
 		
 		Box(
 			modifier = Modifier
@@ -116,13 +116,13 @@ fun GraphTab(
 					modifier = Modifier.fillMaxSize()
 				)
 			}
-			if (showGraphOverlay.value)
+			if (showGraphOverlay)
 				Box(
 					modifier = Modifier
 						.fillMaxSize()
 						.background(MaterialTheme.colorScheme.background.copy(0.5f))
 						.clickable(
-							onClick = { showGraphOverlay.value = false }
+							onClick = { showGraphOverlay = false }
 						)
 				) {
 					Column(
@@ -175,7 +175,7 @@ fun GraphTab(
 		}
 		
 		LabeledRangeSlider(
-			value = if (params.isTimeView) timeIdxSel.value else colRangeSel.value,
+			value = if (params.isTimeView) timeIdxSel else colRangeSel,
 			onValueChange = {
 				if (!params.isTimeView) {
 					val nCols = params.maxCol - params.minCol
@@ -185,7 +185,7 @@ fun GraphTab(
 							maxCol = (it.endInclusive * (activeResolution?.width ?: nCols)).toInt()
 						)
 					)
-					colRangeSel.value = it
+					colRangeSel = it
 				} else {
 					if (!params.isLive) {
 						if (it.start < 0.05f || it.endInclusive > 0.95f) {
@@ -196,7 +196,7 @@ fun GraphTab(
 									maxTimeIdx = params.maxTimeBufferSize - 1
 								)
 							)
-							timeIdxSel.value = 0f..1f
+							timeIdxSel = 0f..1f
 						} else {
 							onParamsChange(
 								params.copy(
@@ -204,7 +204,7 @@ fun GraphTab(
 									maxTimeIdx = (it.endInclusive * (params.maxTimeBufferSize - 1)).toInt()
 								)
 							)
-							timeIdxSel.value = it
+							timeIdxSel = it
 						}
 					} else {
 						onParamsChange(
@@ -214,7 +214,7 @@ fun GraphTab(
 								maxTimeIdx = (0.9f * (params.maxTimeBufferSize - 1)).toInt()
 							)
 						)
-						timeIdxSel.value = 0.1f..0.9f
+						timeIdxSel = 0.1f..0.9f
 					}
 				}
 				
