@@ -1,4 +1,4 @@
-package com.example.ispr.logic.processing
+package com.example.ispr.logic.camera.processing
 
 /**
  * Parameters for the image processing pipeline and visualization.

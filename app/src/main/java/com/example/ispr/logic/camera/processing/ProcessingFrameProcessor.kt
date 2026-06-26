@@ -1,4 +1,4 @@
-package com.example.ispr.logic.processing
+package com.example.ispr.logic.camera.processing
 
 import android.media.Image
 import android.util.Log

@@ -25,8 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.ispr.logic.processing.ProcessingParameters
-import com.example.ispr.logic.processing.ProcessingResult
+import com.example.ispr.logic.camera.processing.ProcessingParameters
+import com.example.ispr.logic.camera.processing.ProcessingResult
 import com.example.ispr.ui.graphs.Graph
 import com.example.ispr.ui.widgets.ColorCheckbox
 import com.example.ispr.ui.widgets.LabeledRangeSlider
