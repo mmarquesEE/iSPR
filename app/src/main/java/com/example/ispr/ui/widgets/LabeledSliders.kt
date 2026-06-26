@@ -21,50 +21,52 @@ import java.util.Locale
  */
 @Composable
 fun LabeledSlider(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    modifier: Modifier = Modifier,
-    label: String = "",
-    format: String = "",
-    enabled: Boolean = true,
-    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0
+	value: Float,
+	onValueChange: (Float) -> Unit,
+	modifier: Modifier = Modifier,
+	label: String = "",
+	numberFormat: String = "",
+	enabled: Boolean = true,
+	valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+	steps: Int = 0
 ) {
-    val alpha = if (enabled) 1f else 0.38f
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (label.isNotEmpty())
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
-                modifier = Modifier.padding(horizontal = 15.dp)
-            )
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            enabled = enabled,
-            valueRange = valueRange,
-            steps = steps,
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.onPrimary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
-            )
-        )
-        if (format.isNotEmpty())
-            Text(
-                text = String.format(Locale.US, format, value),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha),
-                modifier = Modifier.weight(.2f).padding(start = 10.dp)
-            )
-    }
+	val alpha = if (enabled) 1f else 0.38f
+	
+	Row(
+		modifier = modifier.fillMaxWidth(),
+		horizontalArrangement = Arrangement.SpaceBetween,
+		verticalAlignment = Alignment.CenterVertically
+	) {
+		if (label.isNotEmpty())
+			Text(
+				text = label,
+				style = MaterialTheme.typography.bodyMedium,
+				color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
+				modifier = Modifier.padding(horizontal = 15.dp)
+			)
+		Slider(
+			value = value,
+			onValueChange = onValueChange,
+			enabled = enabled,
+			valueRange = valueRange,
+			steps = steps,
+			modifier = Modifier.weight(1f),
+			colors = SliderDefaults.colors(
+				thumbColor = MaterialTheme.colorScheme.onPrimary,
+				activeTrackColor = MaterialTheme.colorScheme.primary,
+				inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
+			)
+		)
+		if (numberFormat.isNotEmpty())
+			Text(
+				text = String.format(Locale.US, numberFormat, value),
+				style = MaterialTheme.typography.bodySmall,
+				color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha),
+				modifier = Modifier
+					.weight(.2f)
+					.padding(start = 10.dp)
+			)
+	}
 }
 
 /**
@@ -72,54 +74,54 @@ fun LabeledSlider(
  */
 @Composable
 fun LabeledRangeSlider(
-    value: ClosedFloatingPointRange<Float>,
-    onValueChange: (ClosedFloatingPointRange<Float>) -> Unit,
-    modifier: Modifier = Modifier,
-    label: String = "",
-    format: String = "",
-    enabled: Boolean = true,
-    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    steps: Int = 0
+	value: ClosedFloatingPointRange<Float>,
+	onValueChange: (ClosedFloatingPointRange<Float>) -> Unit,
+	modifier: Modifier = Modifier,
+	label: String = "",
+	numberFormat: String = "",
+	enabled: Boolean = true,
+	valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+	steps: Int = 0
 ) {
-    val alpha = if (enabled) 1f else 0.38f
-
-    Column(modifier = modifier) {
-        if (label.isNotEmpty() || format.isNotEmpty())
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if(label.isNotEmpty())
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
-                    )
-
-                if(format.isNotEmpty()) {
-                    val startText = String.format(Locale.US, format, value.start)
-                    val endText = String.format(Locale.US, format, value.endInclusive)
-
-                    Text(
-                        text = "$startText - $endText",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha)
-                    )
-                }
-            }
-        RangeSlider(
-            value = value,
-            onValueChange = onValueChange,
-            enabled = enabled,
-            valueRange = valueRange,
-            steps = steps,
-            modifier = Modifier.fillMaxWidth(),
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.onPrimary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
-            )
-        )
-    }
+	val alpha = if (enabled) 1f else 0.38f
+	
+	Column(modifier = modifier) {
+		if (label.isNotEmpty() || numberFormat.isNotEmpty())
+			Row(
+				modifier = Modifier.fillMaxWidth(),
+				horizontalArrangement = Arrangement.SpaceBetween,
+				verticalAlignment = Alignment.CenterVertically
+			) {
+				if (label.isNotEmpty())
+					Text(
+						text = label,
+						style = MaterialTheme.typography.bodyMedium,
+						color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha)
+					)
+				
+				if (numberFormat.isNotEmpty()) {
+					val startText = String.format(Locale.US, numberFormat, value.start)
+					val endText = String.format(Locale.US, numberFormat, value.endInclusive)
+					
+					Text(
+						text = "$startText - $endText",
+						style = MaterialTheme.typography.bodySmall,
+						color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f * alpha)
+					)
+				}
+			}
+		RangeSlider(
+			value = value,
+			onValueChange = onValueChange,
+			enabled = enabled,
+			valueRange = valueRange,
+			steps = steps,
+			modifier = Modifier.fillMaxWidth(),
+			colors = SliderDefaults.colors(
+				thumbColor = MaterialTheme.colorScheme.onPrimary,
+				activeTrackColor = MaterialTheme.colorScheme.primary,
+				inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
+			)
+		)
+	}
 }

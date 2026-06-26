@@ -168,7 +168,7 @@ fun GraphTab(
 								value = params.sampleRate,
 								onValueChange = { onParamsChange(params.copy(sampleRate = it)) },
 								valueRange = 1f..maxFps,
-								format = "%.1f"
+								numberFormat = "%.1f"
 							)
 					}
 				}
@@ -229,7 +229,7 @@ fun GraphTab(
 			value = params.movingAverageWindow.toFloat(),
 			onValueChange = { onParamsChange(params.copy(movingAverageWindow = it.toInt())) },
 			valueRange = 1f..20f,
-			format = "%.0f"
+			numberFormat = "%.0f"
 		)
 		
 		// Processing Height
@@ -238,7 +238,7 @@ fun GraphTab(
 			value = params.centerRowsHeight.toFloat(),
 			onValueChange = { onParamsChange(params.copy(centerRowsHeight = it.toInt())) },
 			valueRange = 1f..200f,
-			format = "%.0f"
+			numberFormat = "%.0f"
 		)
 		
 		Spacer(modifier = Modifier.height(16.dp))
